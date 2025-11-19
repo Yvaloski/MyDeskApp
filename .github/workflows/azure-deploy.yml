@@ -1,0 +1,48 @@
+name: Build and deploy to Azure
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AZURE_WEBAPP_NAME: mydeskapp-$(date +%s)
+  NODE_VERSION: '18.x'
+  DEPLOYMENT_ENV: 'production'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ env.DEPLOYMENT_ENV }}
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build application
+      run: |
+        npm run build --if-present
+        
+    - name: Run tests
+      run: |
+        npm test --if-present
+        
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: .
+        
+    - name: Verify deployment
+      run: |
+        echo "Application deployed to Azure Web App: ${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
