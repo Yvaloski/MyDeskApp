@@ -1,4 +1,4 @@
-name: Build and deploy to Azure
+name: Build, Test and Deploy to Azure
 
 on:
   push:
@@ -9,39 +9,71 @@ on:
 env:
   AZURE_WEBAPP_NAME: mydeskapp
   NODE_VERSION: '22.x'
+  NPM_VERSION: '10.x'
 
 jobs:
   build-and-deploy:
+    name: Build, Test and Deploy
     runs-on: ubuntu-latest
     environment: production
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
       with:
-        node-version: '22.x'
+        node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
-        
+        cache-dependency-path: '**/package-lock.json'
+
     - name: Install dependencies
-      run: npm ci
-      
-    - name: Build application
       run: |
-        npm run build --if-present
+        npm ci --no-audit --prefer-offline
+        
+    - name: Run linter
+      run: |
+        npm run lint --if-present
         
     - name: Run tests
       run: |
         npm test --if-present
         
+    - name: Build application
+      run: |
+        npm run build --if-present
+
+    - name: Upload build artifacts
+      if: success() && github.ref == 'refs/heads/main'
+      uses: actions/upload-artifact@v4
+      with:
+        name: node-app
+        path: |
+          .
+          !node_modules/
+        retention-days: 1
+        
     - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v2
+      if: success() && github.ref == 'refs/heads/main'
+      uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: .
         
     - name: Verify deployment
+      if: success() && github.ref == 'refs/heads/main'
       run: |
-        echo "Application deployed to Azure Web App: ${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+        echo "Application deployed to Azure Web App: https://${{ env.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+        echo "Deployment details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+    - name: Deployment status
+      if: always()
+      run: |
+        if [ "${{ job.status }}" = "success" ]; then
+          echo "Deployment completed successfully!"
+        else
+          echo "Deployment failed. Check the logs for more details."
+          exit 1
+        fi
