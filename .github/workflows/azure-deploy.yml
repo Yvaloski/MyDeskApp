@@ -7,9 +7,8 @@ on:
     branches: [ main ]
 
 env:
-  AZURE_WEBAPP_NAME: mydeskapp-$(date +%s)
+  AZURE_WEBAPP_NAME: mydeskapp
   NODE_VERSION: '18.x'
-  DEPLOYMENT_ENV: 'production'
 
 jobs:
   build-and-deploy:
