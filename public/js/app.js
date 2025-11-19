@@ -38,7 +38,7 @@ class DesktopApp {
         
         folder.innerHTML = `
             <div class="folder-icon">
-                <i class="bi bi-folder"></i>
+                <img src="/images/folder_icon.png" alt="Dossier" width="64" height="64">
             </div>
             <div class="folder-name">${folderData.name}</div>
         `;
@@ -58,9 +58,19 @@ class DesktopApp {
     }
     
     setupNewFolderButton() {
-        const newFolderBtn = document.querySelector('.new-folder-btn');
-        newFolderBtn.addEventListener('click', () => {
-            const folderName = prompt('Nom du dossier :');
+        const folderModal = new bootstrap.Modal(document.getElementById('folderModal'));
+        const folderNameInput = document.getElementById('folderName');
+        const createFolderBtn = document.getElementById('createFolderBtn');
+        
+        // Réinitialiser le champ et afficher la modale
+        document.getElementById('newFolderBtn').addEventListener('click', () => {
+            folderNameInput.value = '';
+            folderNameInput.focus();
+        });
+        
+        // Gérer la création du dossier
+        createFolderBtn.addEventListener('click', () => {
+            const folderName = folderNameInput.value.trim();
             if (folderName) {
                 const folder = this.desktopService.createFolder(
                     folderName, 
@@ -69,6 +79,14 @@ class DesktopApp {
                     Math.random() * (window.innerHeight - 100)
                 );
                 this.createFolderElement(folder);
+                folderModal.hide();
+            }
+        });
+        
+        // Permettre la validation avec la touche Entrée
+        folderNameInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                createFolderBtn.click();
             }
         });
     }

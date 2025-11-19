@@ -49,6 +49,9 @@ app.use('/upload', uploadRouter);
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
+// Serve static images
+app.use('/images', express.static(path.join(__dirname, 'public/images')));
+
 // Gestion des routes SPA (Single Page Application) - This should be the last route
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

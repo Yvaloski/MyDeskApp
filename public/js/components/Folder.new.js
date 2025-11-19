@@ -15,7 +15,7 @@ export class Folder {
         
         folder.innerHTML = `
             <div class="folder-icon">
-                <i class="bi bi-folder"></i>
+                <img src="/images/folder_icon.png" alt="Dossier" width="64" height="64">
             </div>
             <div class="folder-name">${this.data.name}</div>
         `;
