@@ -64,7 +64,23 @@ export class DesktopService {
         });
     }
     
-    // Ajouter un fichier
+    // Créer un nouveau fichier vide
+    createFile(name, path = '/', x = 0, y = 0, content = '', mimeType = 'text/plain') {
+        const fileBlob = new Blob([content], { type: mimeType });
+        return this.addItem({
+            type: 'file',
+            name,
+            path,
+            x,
+            y,
+            size: content.length,
+            mimeType,
+            content,
+            url: URL.createObjectURL(fileBlob)
+        });
+    }
+    
+    // Ajouter un fichier existant (upload)
     addFile(file, path = '/', x = 0, y = 0) {
         return this.addItem({
             type: 'file',
@@ -86,6 +102,7 @@ export class DesktopService {
             this.saveItems();
             return true;
         }
+
         return false;
     }
 

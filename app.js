@@ -1,18 +1,72 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
-var cors = require('cors');
+const createError = require('http-errors');
+const express = require('express');
+const path = require('path');
+const cookieParser = require('cookie-parser');
+const logger = require('morgan');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const xss = require('xss-clean');
+const hpp = require('hpp');
+const mongoSanitize = require('express-mongo-sanitize');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
 var uploadRouter = require('./routes/upload');
 
-var app = express();
+const app = express();
 
-// Enable CORS for all routes
-app.use(cors());
+// 1) GLOBAL MIDDLEWARES
+// Set security HTTP headers
+app.use(helmet());
+
+// Development logging
+if (process.env.NODE_ENV === 'development') {
+  app.use(logger('dev'));
+}
+
+// Limit requests from same API
+const limiter = rateLimit({
+  max: 100,
+  windowMs: 60 * 60 * 1000,
+  message: 'Trop de requêtes depuis cette adresse IP, veuillez réessayer dans une heure!'
+});
+app.use('/api', limiter);
+
+// Body parser, reading data from body into req.body
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Data sanitization against NoSQL query injection
+app.use(mongoSanitize());
+
+// Data sanitization against XSS
+app.use(xss());
+
+// Prevent parameter pollution
+app.use(hpp({
+  whitelist: [
+    'duration',
+    'ratingsQuantity',
+    'ratingsAverage',
+    'maxGroupSize',
+    'difficulty',
+    'price'
+  ]
+}));
+
+// Enable CORS with specific options
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://votredomaine.com'] 
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+app.use(cors(corsOptions));
+
+// Désactiver l'en-tête X-Powered-By
+app.disable('x-powered-by');
 
 // Désactiver le moteur de vue EJS car nous utilisons du HTML statique
 // app.set('views', path.join(__dirname, 'views'));
@@ -21,7 +75,15 @@ app.use(cors());
 app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
+// Sécurisation des cookies
+app.use(cookieParser(process.env.COOKIE_SECRET || 'votre-secret-securise'));
+
+// Protéger contre les attaques de type Clickjacking
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  next();
+});
 
 // Configuration des chemins statiques
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -48,6 +110,9 @@ app.use('/upload', uploadRouter);
 
 // Serve uploaded files
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+
+// Serve static images
+app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
 // Gestion des routes SPA (Single Page Application) - This should be the last route
 app.get('*', (req, res) => {

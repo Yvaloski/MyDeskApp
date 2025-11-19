@@ -5,26 +5,61 @@ export class ContextMenu {
         this.setupEventListeners();
         this.hide();
         this.resolvePromise = null;
+        this.currentTarget = null;
     }
 
     createElement() {
         const menu = document.createElement('div');
         menu.className = 'context-menu';
         menu.innerHTML = `
-            <div class="context-menu-item" data-action="newFolder">
-                <i class="bi bi-folder-plus"></i> Nouveau dossier
+            <!-- Actions pour les dossiers -->
+            <div class="context-menu-section">
+                <div class="context-menu-item" data-action="open">
+                    <i class="bi bi-folder2-open"></i> Ouvrir
+                </div>
+                <div class="context-menu-item" data-action="openInNewWindow">
+                    <i class="bi bi-window-plus"></i> Ouvrir dans une nouvelle fenêtre
+                </div>
             </div>
+            
+            <div class="context-menu-divider"></div>
+            
+            <div class="context-menu-section">
+                <div class="context-menu-item" data-action="newFolder">
+                    <i class="bi bi-folder-plus"></i> Nouveau dossier
+                </div>
+                <div class="context-menu-item" data-action="newFile">
+                    <i class="bi bi-file-earmark-plus"></i> Nouveau fichier
+                </div>
+            </div>
+            
             <div class="context-menu-actions" id="contextMenuActions">
+                <div class="context-menu-item" data-action="cut">
+                    <i class="bi bi-scissors"></i> Couper
+                </div>
+                <div class="context-menu-item" data-action="copy">
+                    <i class="bi bi-files"></i> Copier
+                </div>
+                <div class="context-menu-item" data-action="paste">
+                    <i class="bi bi-clipboard"></i> Coller
+                </div>
                 <div class="context-menu-item" data-action="renameFolder">
                     <i class="bi bi-pencil"></i> Renommer
                 </div>
-                <div class="context-menu-item" data-action="deleteFolder">
+                <div class="context-menu-item text-danger" data-action="deleteFolder">
                     <i class="bi bi-trash"></i> Supprimer
                 </div>
             </div>
+            
             <div class="context-menu-divider"></div>
-            <div class="context-menu-item" data-action="refresh">
-                <i class="bi bi-arrow-clockwise"></i> Actualiser
+            
+            <div class="context-menu-section">
+                <div class="context-menu-item" data-action="properties">
+                    <i class="bi bi-info-circle"></i> Propriétés
+                </div>
+                <div class="context-menu-item" data-action="refresh">
+                    <i class="bi bi-arrow-clockwise"></i> Actualiser
+                </div>
             </div>
         `;
         
@@ -47,21 +82,60 @@ export class ContextMenu {
     }
 
     show(x, y, options = {}) {
+        this.currentTarget = options.target || null;
+        
         // Mettre à jour les options du menu
         const actionsContainer = this.element.querySelector('#contextMenuActions');
-        const renameItem = this.element.querySelector('[data-action="renameFolder"]');
-        const deleteItem = this.element.querySelector('[data-action="deleteFolder"]');
+        
+        // Afficher/masquer les sections en fonction du contexte
+        const isOnFolder = options.isFolder || false;
+        const isOnFile = options.isFile || false;
+        const isOnDesktop = !isOnFolder && !isOnFile;
+        
+        // Mettre à jour la visibilité des sections
+        const sections = this.element.querySelectorAll('.context-menu-section');
+        sections.forEach(section => {
+            const hasVisibleItems = Array.from(section.querySelectorAll('.context-menu-item'))
+                .some(item => !item.style.display || item.style.display !== 'none');
+            section.style.display = hasVisibleItems ? 'block' : 'none';
+        });
         
         // Afficher/masquer les actions de dossier
-        const showActions = options.canDelete || options.canRename;
-        if (actionsContainer) actionsContainer.style.display = showActions ? 'block' : 'none';
+        if (actionsContainer) {
+            actionsContainer.style.display = (isOnFolder || isOnFile) ? 'block' : 'none';
+        }
         
-        // Afficher/masquer les actions spécifiques
-        if (renameItem) renameItem.style.display = options.canRename ? 'flex' : 'none';
-        if (deleteItem) deleteItem.style.display = options.canDelete ? 'flex' : 'none';
+        // Mettre à jour les états des éléments de menu
+        const menuItems = {
+            'open': isOnFolder || isOnFile,
+            'openInNewWindow': isOnFolder || isOnFile,
+            'newFolder': isOnDesktop || isOnFolder,
+            'newFile': isOnDesktop || isOnFolder,
+            'cut': isOnFolder || isOnFile,
+            'copy': isOnFolder || isOnFile,
+            'paste': options.canPaste || false,
+            'renameFolder': isOnFolder || isOnFile,
+            'deleteFolder': isOnFolder || isOnFile,
+            'properties': isOnFolder || isOnFile || isOnDesktop,
+            'refresh': true
+        };
+        
+        // Mettre à jour la visibilité des éléments de menu
+        Object.entries(menuItems).forEach(([action, visible]) => {
+            const item = this.element.querySelector(`[data-action="${action}"]`);
+            if (item) {
+                item.style.display = visible ? 'flex' : 'none';
+            }
+        });
         
         // Afficher le menu
         this.element.style.display = 'block';
+        
+        // Forcer le navigateur à recalculer le style pour déclencher la transition
+        this.element.offsetHeight;
+        
+        // Ajouter la classe visible pour l'animation
+        this.element.classList.add('visible');
         
         // Ajuster la position pour rester dans la fenêtre
         const rect = this.element.getBoundingClientRect();
@@ -113,7 +187,11 @@ export class ContextMenu {
     }
 
     hide() {
-        this.element.style.display = 'none';
+        this.element.classList.remove('visible');
+        // Attendre la fin de l'animation avant de cacher complètement
+        setTimeout(() => {
+            this.element.style.display = 'none';
+        }, 100);
     }
 
     remove() {

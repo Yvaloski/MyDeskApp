@@ -1,16 +1,24 @@
-/* Tous les imports doivent être en haut du fichier */
+/* ===================================
+   #IMPORTS
+   =================================== */
 @import './_variables.css';
 @import './components/_folder.css';
 @import './components/_context-menu.css';
 @import './components/_taskbar.css';
+@import './components/_file-explorer.css';
 
-/* Reset et styles de base */
+/* ===================================
+   #RESET
+   =================================== */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* ===================================
+   #BASE STYLES
+   =================================== */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: var(--desktop-bg);
@@ -19,10 +27,11 @@ body {
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    animation: fadeIn 0.5s ease-out;
 }
 
-/* Layout */
+/* ===================================
+   #LAYOUT
+   =================================== */
 .desktop {
     position: relative;
     width: 100%;
@@ -31,273 +40,16 @@ body {
     overflow: hidden;
 }
 
-.folder {
-    position: absolute;
-    width: 100px;
-    text-align: center;
-    cursor: pointer;
-    padding: 10px;
-    border-radius: 5px;
-    transition: all 0.2s ease;
-    border: 1px solid transparent;
-    user-select: none;
-    background-color: transparent;
-    z-index: 1;
-}
-
-.folder.dragging {
-    opacity: 0.5;
-    z-index: 1000;
-}
-
-.folder.drag-over {
-    background-color: rgba(30, 120, 215, 0.2);
-    border: 2px dashed rgba(30, 120, 215, 0.8);
-    box-shadow: 0 0 10px rgba(30, 120, 215, 0.5);
-}
-
-.folder.drag-over .folder-icon {
-    transform: scale(1.1);
-    filter: drop-shadow(0 0 5px rgba(30, 120, 215, 0.8));
-}
-
-/* Effet de succès lors du dépôt de fichiers */
-.folder.file-drop-success {
-    animation: pulse-success 1s;
-}
-
-@keyframes pulse-success {
-    0% { background-color: rgba(46, 204, 113, 0.2); }
-    50% { background-color: rgba(46, 204, 113, 0.4); }
-    100% { background-color: rgba(46, 204, 113, 0.2); }
-}
-
-/* Style pour l'icône de dossier */
-.folder-icon {
-    transition: transform 0.2s, filter 0.2s;
-}
-
-.folder:hover .folder-icon {
-    transform: scale(1.05);
-}
-
-/* Style pour l'indicateur de contenu */
-.folder-has-content::after {
-    content: '▶';
-    position: absolute;
-    bottom: 5px;
-    right: 5px;
-    color: rgba(30, 120, 215, 0.8);
-    font-size: 12px;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.folder:hover .folder-has-content::after {
-    opacity: 1;
-}
-
-/* Styles pour l'explorateur de fichiers */
-.file-explorer {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: flex;
-    flex-direction: column;
-    z-index: 2000;
-    padding: 20px;
-    backdrop-filter: blur(5px);
-}
-
-.file-explorer-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    background-color: var(--taskbar-bg);
-    border-bottom: 1px solid var(--button-border-light);
-}
-
-.file-explorer-content {
-    flex: 1;
-    background-color: #0e0e0e;
-    overflow: auto;
-    padding: 10px;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 15px;
-}
-
-.file-explorer-folder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 10px;
-    cursor: pointer;
-    border-radius: 5px;
-}
-
-.file-explorer-folder:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-}
-
-.file-explorer-folder-icon {
-    width: 64px;
-    height: 64px;
-    margin-bottom: 5px;
-}
-
-.file-explorer-folder-name {
-    font-size: 12px;
-    text-align: center;
-    word-break: break-word;
-    max-width: 100%;
-}
-
-.folder:hover {
-    background-color: var(--folder-hover-bg);
-}
-
-.folder.selected {
-    background-color: rgba(30, 120, 215, 0.3);
-    border: 1px solid rgba(30, 120, 215, 0.8);
-}
-
-.folder-icon {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 5px;
-}
-
-.folder-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.folder-name {
-    color: white;
-    font-size: 12px;
-    word-break: break-word;
-    text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.8);
-    padding: 2px 4px;
-    border-radius: 2px;
-    margin-top: 2px;
-}
-
-.folder.selected .folder-name {
-    background-color: rgba(30, 120, 215, 0.5);
-}
-
-.folder-rename-input {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    display: none;
-    padding: 10px;
-}
-
-.folder-rename-field {
-    width: 100%;
-    padding: 2px 4px;
-    background: white;
-    border: 1px solid #0078d7;
-    border-radius: 2px;
-    font-size: 12px;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.3);
-}
-
-/* Modal */
-.modal {
-    display: none;
+/* ===================================
+   #BACKGROUND
+   =================================== */
+.grid-background {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0,0,0,0.5);
-    z-index: 1001;
-    justify-content: center;
-    align-items: center;
+    z-index: -1;
+    background-color: #000;
 }
 
-.modal-content {
-    background: var(--taskbar-bg);
-    padding: 20px;
-    border: 2px solid var(--button-border-light);
-    border-right-color: var(--button-border-dark);
-    border-bottom-color: var(--button-border-dark);
-    width: 300px;
-    color: var(--text-color);
-}
-
-.modal-title {
-    margin-bottom: 15px;
-    font-weight: bold;
-    color: var(--text-color);
-}
-
-.modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.modal-actions button {
-    padding: 5px 15px;
-    border: 1px solid var(--button-border-light);
-    background: var(--button-bg);
-    color: var(--text-color);
-    cursor: pointer;
-}
-
-.modal-actions button:hover {
-    background: var(--button-hover-bg);
-}
-
-#folderNameInput {
-    width: 100%;
-    padding: 5px;
-    margin-bottom: 10px;
-    background: var(--input-bg);
-    border: 1px solid var(--button-border-light);
-    color: var(--text-color);
-}
-
-/* Utilitaires */
-.hidden {
-    display: none !important;
-}
-
-/* Animation de démarrage */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-/* Barre de défilement personnalisée */
-::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-
-::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
