@@ -81,7 +81,7 @@ app.use(cookieParser(process.env.COOKIE_SECRET || 'votre-secret-securise'));
 // Protéger contre les attaques de type Clickjacking
 app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy', 'frame-ancestors \'none\'');
   next();
 });
 
@@ -125,7 +125,7 @@ app.use(function(req, res, next) {
 });
 
 // error handler
-app.use(function(err, req, res, next) {
+app.use(function(err, req, res) {
   // set locals, only providing error in development
   const isDev = req.app.get('env') === 'development';
   const status = err.status || 500;
@@ -145,7 +145,7 @@ app.use(function(err, req, res, next) {
   res.status(status);
   res.send(`
     <!DOCTYPE html>
-    <html>
+    <html lang="fr">
       <head>
         <title>Erreur ${status}</title>
         <style>
