@@ -85,6 +85,22 @@
     background-color: #37373d;
 }
 
+/* Styles pour le glisser-déposer */
+.file-explorer-item.drag-over {
+    background-color: #37373d;
+    border: 2px dashed #4ec9b0;
+}
+
+.file-explorer-content.drag-over {
+    background-color: #2a2d2e;
+    outline: 2px dashed #4ec9b0;
+    outline-offset: -10px;
+}
+
+.file-explorer-item.dragging {
+    opacity: 0.5;
+}
+
 .file-explorer-item.folder {
     font-weight: 500;
 }

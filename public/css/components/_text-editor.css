@@ -1,0 +1,124 @@
+.text-editor {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    max-width: 800px;
+    height: 80%;
+    max-height: 600px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.text-editor-header {
+    padding: 10px 15px;
+    background-color: #4ec9b0;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.text-editor-title {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 500;
+}
+
+.text-editor-close {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+.text-editor-close:hover {
+    opacity: 0.8;
+}
+
+.text-editor-toolbar {
+    padding: 8px 15px;
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    gap: 5px;
+}
+
+.text-editor-button {
+    padding: 5px 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.text-editor-button:hover {
+    background-color: #f0f0f0;
+}
+
+.text-editor-button i {
+    font-size: 1em;
+}
+
+.text-editor-content {
+    flex: 1;
+    margin: 0;
+    border: none;
+    resize: none;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 15px;
+    outline: none;
+    background-color: #fafafa;
+}
+
+.text-editor-footer {
+    padding: 10px 15px;
+    background-color: #f5f5f5;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9em;
+    color: #666;
+}
+
+.text-editor-save {
+    background-color: #4ec9b0;
+    color: white;
+    border: none;
+    padding: 5px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.text-editor-save:hover {
+    background-color: #3db8a0;
+}
+
+.text-editor-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    display: none;
+}
+
+.text-editor-overlay.visible {
+    display: block;
+}

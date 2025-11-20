@@ -18,14 +18,16 @@ class DesktopApp {
     }
     
     renderFolders() {
-        // Nettoyer les dossiers existants
-        document.querySelectorAll('.folder').forEach(el => el.remove());
+        // Nettoyer les éléments existants
+        document.querySelectorAll('.folder, .file').forEach(el => el.remove());
         
-        // Afficher les dossiers à la racine
-        const folders = this.desktopService.getItemsInPath('/');
-        folders.forEach(item => {
+        // Afficher les dossiers et fichiers à la racine
+        const items = this.desktopService.getItemsInPath('/');
+        items.forEach(item => {
             if (item.type === 'folder') {
                 this.createFolderElement(item);
+            } else if (item.type === 'file') {
+                this.createFileElement(item);
             }
         });
     }
@@ -40,37 +42,80 @@ class DesktopApp {
         
         folder.innerHTML = `
             <div class="folder-icon">
-                <img src="/images/folder_icon.png" alt="Dossier" width="64" height="64">
+                <img src="/images/folder_icon.png" alt="Dossier" width="64" height="64" draggable="false">
             </div>
             <div class="folder-name">${folderData.name}</div>
         `;
         
         // Gestion du double-clic
-        folder.addEventListener('dblclick', () => {
+        folder.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
             this.fileExplorer.show(`/${folderData.name}`);
         });
         
-        folder.addEventListener('dragstart', (e) => {
-            e.dataTransfer.setData('text/plain', folderData.id);
-            e.dataTransfer.effectAllowed = 'move';
+        // Gestion du glisser-déposer pour déplacer le dossier
+        let startX, startY, startLeft, startTop;
+        
+        folder.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // Seulement le bouton gauche de la souris
+            
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = parseInt(folder.style.left) || 0;
+            startTop = parseInt(folder.style.top) || 0;
+            
+            const onMouseMove = (e) => {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                
+                folder.style.left = `${startLeft + dx}px`;
+                folder.style.top = `${startTop + dy}px`;
+            };
+            
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                
+                // Mettre à jour la position dans le service
+                this.desktopService.updateItemPosition(
+                    folderData.id,
+                    parseInt(folder.style.left) || 0,
+                    parseInt(folder.style.top) || 0
+                );
+            };
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
         });
         
         // Gestion du clic droit
         folder.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             this.showContextMenu(e, 'folder');
         });
         
+        // Gestion du survol
+        folder.addEventListener('mouseenter', () => {
+            folder.style.backgroundColor = 'rgba(78, 201, 176, 0.1)';
+        });
+        
+        folder.addEventListener('mouseleave', () => {
+            folder.style.backgroundColor = 'transparent';
+        });
+        
         this.desktop.appendChild(folder);
+        
+        return folder;
     }
     
     createFileElement(fileData) {
         const file = document.createElement('div');
         file.className = 'file';
-        file.style.left = `${fileData.x}px`;
-        file.style.top = `${fileData.y}px`;
+        file.style.position = 'absolute';
+        file.style.left = `${fileData.x || 0}px`;
+        file.style.top = `${fileData.y || 0}px`;
         file.dataset.id = fileData.id;
-        file.draggable = true;
         
         // Déterminer l'icône en fonction de l'extension
         const extension = fileData.name.split('.').pop().toLowerCase();
@@ -96,36 +141,230 @@ class DesktopApp {
         `;
         
         // Gestion du double-clic
-        file.addEventListener('dblclick', () => {
+        file.addEventListener('dblclick', (e) => {
+            e.stopPropagation();
             this.openFile(fileData);
         });
         
-        file.addEventListener('dragstart', (e) => {
-            e.dataTransfer.setData('text/plain', fileData.id);
-            e.dataTransfer.effectAllowed = 'move';
+        // Gestion du glisser-déposer pour déplacer le fichier
+        let startX, startY, startLeft, startTop;
+        
+        file.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return; // Seulement le bouton gauche de la souris
+            
+            startX = e.clientX;
+            startY = e.clientY;
+            startLeft = parseInt(file.style.left) || 0;
+            startTop = parseInt(file.style.top) || 0;
+            
+            const onMouseMove = (e) => {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                
+                file.style.left = `${startLeft + dx}px`;
+                file.style.top = `${startTop + dy}px`;
+            };
+            
+            const onMouseUp = () => {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                
+                // Mettre à jour la position dans le service
+                this.desktopService.updateItemPosition(
+                    fileData.id,
+                    parseInt(file.style.left) || 0,
+                    parseInt(file.style.top) || 0
+                );
+            };
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
         });
         
         // Gestion du clic droit
         file.addEventListener('contextmenu', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             this.showContextMenu(e, 'file');
         });
         
+        // Gestion du survol
+        file.addEventListener('mouseenter', () => {
+            file.style.backgroundColor = 'rgba(78, 201, 176, 0.1)';
+        });
+        
+        file.addEventListener('mouseleave', () => {
+            file.style.backgroundColor = 'transparent';
+        });
+        
         this.desktop.appendChild(file);
+        
+        // Si les coordonnées ne sont pas définies, positionner automatiquement
+        if (fileData.x === undefined || fileData.y === undefined) {
+            this.autoPositionFile(file);
+        }
+    }
+    
+    autoPositionFile(fileElement) {
+        // Récupérer tous les éléments du bureau
+        const desktopItems = document.querySelectorAll('.folder, .file');
+        
+        // Taille d'une cellule de grille (en pixels)
+        const gridSize = 120;
+        
+        // Nombre maximum de colonnes
+        const maxCols = Math.floor(this.desktop.offsetWidth / gridSize);
+        
+        // Trouver une position libre
+        let row = 0, col = 0;
+        let positionFound = false;
+        
+        while (!positionFound) {
+            // Vérifier si la position est occupée
+            const x = col * gridSize + 20;
+            const y = row * gridSize + 20;
+            
+            const isOccupied = Array.from(desktopItems).some(item => {
+                if (item === fileElement) return false;
+                const rect = item.getBoundingClientRect();
+                return !(x + gridSize < rect.left || 
+                        x > rect.right || 
+                        y + gridSize < rect.top || 
+                        y > rect.bottom);
+            });
+            
+            if (!isOccupied) {
+                // Positionner l'élément
+                fileElement.style.left = `${x}px`;
+                fileElement.style.top = `${y}px`;
+                
+                // Mettre à jour les données de position
+                const fileId = fileElement.dataset.id;
+                const file = this.desktopService.getItemById(fileId);
+                if (file) {
+                    file.x = x;
+                    file.y = y;
+                    this.desktopService.saveItems();
+                }
+                
+                positionFound = true;
+            } else {
+                // Passer à la position suivante
+                col++;
+                if (col >= maxCols) {
+                    col = 0;
+                    row++;
+                }
+            }
+        }
     }
     
     openFile(fileData) {
-        // Pour les fichiers texte, on pourrait ouvrir un éditeur simple
+        // Vérifier si c'est un fichier texte
         if (fileData.mimeType.startsWith('text/')) {
-            const content = prompt('Contenu du fichier :', fileData.content || '');
-            if (content !== null) {
-                fileData.content = content;
-                this.desktopService.updateFileContent(fileData.id, content);
-            }
+            this.openTextEditor(fileData);
+        } else if (fileData.mimeType.startsWith('image/')) {
+            // Pour les images, on les ouvre dans un nouvel onglet
+            window.open(fileData.url, '_blank');
         } else {
-            // Pour les autres types de fichiers, on pourrait essayer de les ouvrir dans un nouvel onglet
-            // ou afficher un message indiquant qu'ils ne sont pas éditables
-            alert(`Ouverture du fichier ${fileData.name}`);
+            // Pour les autres types de fichiers, on affiche une alerte
+            alert(`Le fichier ${fileData.name} ne peut pas être édité directement.`);
+        }
+    }
+    
+    // Ouvrir l'éditeur de texte
+    openTextEditor(fileData) {
+        // Créer l'overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'text-editor-overlay';
+        
+        // Créer l'éditeur
+        const editor = document.createElement('div');
+        editor.className = 'text-editor';
+        editor.innerHTML = `
+            <div class="text-editor-header">
+                <h3 class="text-editor-title">${fileData.name}</h3>
+                <button class="text-editor-close">&times;</button>
+            </div>
+            <div class="text-editor-toolbar">
+                <button class="text-editor-button" data-action="save">
+                    <i class="bi bi-save"></i> Enregistrer
+                </button>
+            </div>
+            <textarea class="text-editor-content" spellcheck="false">${fileData.content || ''}</textarea>
+            <div class="text-editor-footer">
+                <span>${fileData.size || 0} caractères</span>
+                <button class="text-editor-save">Enregistrer</button>
+            </div>
+        `;
+        
+        // Ajouter l'éditeur et l'overlay au document
+        overlay.appendChild(editor);
+        document.body.appendChild(overlay);
+        
+        // Afficher l'overlay avec une animation
+        setTimeout(() => {
+            overlay.classList.add('visible');
+            editor.querySelector('.text-editor-content').focus();
+        }, 10);
+        
+        // Gestionnaire d'événements pour le bouton de fermeture
+        const closeButton = editor.querySelector('.text-editor-close');
+        closeButton.addEventListener('click', () => {
+            this.closeTextEditor(overlay, editor, null, fileData);
+        });
+        
+        // Gestionnaire d'événements pour le bouton d'enregistrement
+        const saveButton = editor.querySelector('.text-editor-save');
+        saveButton.addEventListener('click', () => {
+            const content = editor.querySelector('.text-editor-content').value;
+            this.closeTextEditor(overlay, editor, content, fileData);
+        });
+        
+        // Gestionnaire d'événements pour le bouton d'enregistrement de la barre d'outils
+        const toolbarSaveButton = editor.querySelector('[data-action="save"]');
+        toolbarSaveButton.addEventListener('click', () => {
+            const content = editor.querySelector('.text-editor-content').value;
+            this.closeTextEditor(overlay, editor, content, fileData);
+        });
+        
+        // Gestionnaire d'événements pour la touche Échap
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                this.closeTextEditor(overlay, editor, null, fileData);
+            } else if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                const content = editor.querySelector('.text-editor-content').value;
+                this.closeTextEditor(overlay, editor, content, fileData);
+            }
+        };
+        
+        document.addEventListener('keydown', handleKeyDown);
+        
+        // Stocker la référence au gestionnaire d'événements pour le nettoyage
+        editor._keyDownHandler = handleKeyDown;
+    }
+    
+    // Fermer l'éditeur de texte
+    closeTextEditor(overlay, editor, content, fileData) {
+        // Supprimer le gestionnaire d'événements
+        document.removeEventListener('keydown', editor._keyDownHandler);
+        
+        // Ajouter une animation de fermeture
+        overlay.classList.remove('visible');
+        
+        // Supprimer l'overlay après l'animation
+        setTimeout(() => {
+            if (overlay.parentNode) {
+                overlay.parentNode.removeChild(overlay);
+            }
+        }, 300);
+        
+        // Si du contenu a été fourni, mettre à jour le fichier
+        if (content !== null && fileData) {
+            this.desktopService.updateFileContent(fileData.id, content);
+            // Mettre à jour l'interface utilisateur si nécessaire
+            this.renderFolders();
         }
     }
     
@@ -170,26 +409,49 @@ class DesktopApp {
         // Gestion du glisser-déposer sur le bureau
         this.desktop.addEventListener('dragover', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             this.desktop.classList.add('drag-over');
         });
         
-        this.desktop.addEventListener('dragleave', () => {
+        this.desktop.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             this.desktop.classList.remove('drag-over');
         });
         
         this.desktop.addEventListener('drop', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             this.desktop.classList.remove('drag-over');
             
-            // Gérer le dépôt de fichiers
+            // Gérer le dépôt de fichiers depuis l'extérieur
             if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
                 this.uploadFiles(e.dataTransfer.files);
+                return;
             }
             
-            // Gérer le déplacement de dossiers
-            const folderId = e.dataTransfer.getData('text/plain');
-            if (folderId) {
-                this.updateFolderPosition(folderId, e.clientX, e.clientY);
+            // Gérer le déplacement d'éléments (fichiers ou dossiers)
+            const itemData = e.dataTransfer.getData('text/plain');
+            if (itemData) {
+                try {
+                    // Essayer de parser les données comme JSON (pour les fichiers)
+                    const data = JSON.parse(itemData);
+                    if (data && data.id) {
+                        this.updateFolderPosition(
+                            data.id, 
+                            e.clientX, 
+                            e.clientY
+                        );
+
+                    }
+                } catch (e) {
+                    // Si le parsing échoue, traiter comme un ID simple (pour les dossiers)
+                    this.updateFolderPosition(
+                        itemData, 
+                        e.clientX, 
+                        e.clientY
+                    );
+                }
             }
         });
     }
@@ -283,30 +545,65 @@ class DesktopApp {
         }
     }
     
-    updateFolderPosition(folderId, x, y) {
-        const folder = document.querySelector(`.folder[data-id="${folderId}"]`);
-        if (folder) {
+    updateFolderPosition(itemId, clientX, clientY) {
+        try {
+            console.log('updateFolderPosition appelé avec :', { itemId, clientX, clientY });
+            
+            // Vérifier si l'ID est déjà un objet (cas des fichiers)
+            let actualId = itemId;
+            if (typeof itemId === 'object' && itemId !== null) {
+                actualId = itemId.id || itemId;
+            } else if (typeof itemId === 'string' && (itemId.startsWith('{') || itemId.startsWith('['))) {
+                // Si c'est une chaîne JSON, essayer de la parser
+                try {
+                    const parsedData = JSON.parse(itemId);
+                    actualId = parsedData.id || itemId;
+                } catch (e) {
+                    console.warn('Impossible de parser l\'ID comme JSON :', itemId);
+                }
+            }
+            
+            console.log('ID à utiliser :', actualId);
+            
+            // S'assurer que l'ID est une chaîne
+            const itemIdStr = String(actualId);
+            
+            // Trouver l'élément dans le DOM
+            const element = document.querySelector(`[data-id="${itemIdStr}"]`);
+            if (!element) {
+                console.error('Élément non trouvé avec l\'ID :', itemIdStr);
+                console.log('Tous les éléments data-id :', 
+                    Array.from(document.querySelectorAll('[data-id]')).map(el => el.dataset.id)
+                );
+                return;
+            }
+            
+            // Calculer la nouvelle position
             const rect = this.desktop.getBoundingClientRect();
-            const posX = x - rect.left - 50; // Ajustement pour le centre de l'élément
-            const posY = y - rect.top - 50;
+            const posX = clientX - rect.left - 32; // Ajustement pour le centre de l'icône
+            const posY = clientY - rect.top - 32;
             
-            folder.style.left = `${posX}px`;
-            folder.style.top = `${posY}px`;
+            console.log('Nouvelle position calculée :', { posX, posY });
             
-            this.desktopService.updateItemPosition(folderId, posX, posY);
-        }
-    }
-    
-    uploadFiles(files) {
-        Array.from(files).forEach(file => {
-            this.desktopService.addFile(
-                file, 
-                '/',
-                Math.random() * (window.innerWidth - 100),
-                Math.random() * (window.innerHeight - 100)
+            // Mettre à jour la position dans le DOM
+            element.style.left = `${Math.max(0, posX)}px`;
+            element.style.top = `${Math.max(0, posY)}px`;
+            
+            // Mettre à jour la position dans le service
+            this.desktopService.updateItemPosition(
+                itemIdStr, 
+                Math.max(0, posX), 
+                Math.max(0, posY)
             );
-        });
-        this.renderFolders();
+            
+            console.log('Position mise à jour pour l\'élément :', {
+                id: itemIdStr,
+                x: Math.max(0, posX),
+                y: Math.max(0, posY)
+            });
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour de la position :', error);
+        }
     }
 }
 
