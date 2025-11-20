@@ -1,0 +1,55 @@
+<div class="file-explorer">
+  <div class="file-explorer-header">
+    <div class="file-explorer-title">Explorateur de fichiers</div>
+    <button class="file-explorer-close" (click)="onClose()">&times;</button>
+  </div>
+  
+  <div class="file-explorer-toolbar">
+    <button class="file-explorer-btn" (click)="createNewFolder()">
+      <i class="bi bi-folder-plus"></i> Nouveau dossier
+    </button>
+    <button class="file-explorer-btn" (click)="fileInput.click()">
+      <i class="bi bi-upload"></i> Téléverser
+    </button>
+    <input #fileInput type="file" style="display: none;" multiple (change)="onFileUpload($event)">
+  </div>
+  
+  <div class="file-explorer-path">{{ currentPath === '/' ? 'Bureau' : currentPath }}</div>
+  
+  <div class="file-explorer-content">
+    @if (loading) {
+      <div class="d-flex justify-content-center my-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Chargement...</span>
+        </div>
+      </div>
+    } @else if (items.length === 0) {
+      <div class="file-explorer-empty">Ce dossier est vide</div>
+    } @else {
+      <ul class="file-explorer-list">
+        @if (currentPath !== '/') {
+          <li class="file-explorer-item" (click)="goToParent()">
+            <div class="file-explorer-icon">
+              <i class="bi bi-arrow-90deg-up"></i>
+            </div>
+            <div class="file-explorer-name">Dossier parent</div>
+          </li>
+        }
+        
+        @for (item of items; track item.id) {
+          <div class="file-explorer-item" 
+               [class.folder]="item.type === 'folder'"
+               (dblclick)="onItemDoubleClick(item)">
+            <div class="file-explorer-icon">
+              <i class="bi" [ngClass]="getFileIcon(item)"></i>
+            </div>
+            <div class="file-explorer-name">{{ item.name }}</div>
+            @if (item.type === 'file') {
+              <div class="file-explorer-size">{{ formatFileSize(item.size) }}</div>
+            }
+          </div>
+        }
+      </ul>
+    }
+  </div>
+</div>

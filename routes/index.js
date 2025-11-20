@@ -1,9 +1,25 @@
-var express = require('express');
-var router = express.Router();
+const express = require('express');
+const itemRoutes = require('./itemRoutes');
 
-/* GET home page. */
-router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Express' });
+const router = express.Router();
+
+// Routes API pour les items
+router.use('/v1/items', itemRoutes);
+
+// Route de test
+router.get('/test', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'API is working!'
+  });
+});
+
+// Gestion des routes API non trouvées
+router.all('*', (req, res) => {
+  res.status(404).json({
+    status: 'fail',
+    message: `Endpoint non trouvé: ${req.originalUrl}`
+  });
 });
 
 module.exports = router;

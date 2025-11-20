@@ -1,4 +1,4 @@
-const createError = require('http-errors');
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -9,158 +9,158 @@ const rateLimit = require('express-rate-limit');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const mongoSanitize = require('express-mongo-sanitize');
+const { initDatabase } = require('./config/cosmos');
+const globalErrorHandler = require('./middlewares/error');
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
-var uploadRouter = require('./routes/upload');
-
-const app = express();
-
-// 1) GLOBAL MIDDLEWARES
-// Set security HTTP headers
-app.use(helmet());
-
-// Development logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(logger('dev'));
+// Initialiser la base de données et l'application
+async function initializeApp() {
+  try {
+    // Initialiser la connexion à la base de données
+    await initDatabase();
+    console.log('✅ Base de données initialisée avec succès');
+    
+    const app = express();
+    
+    // 1) MIDDLEWARES GLOBAUX
+    
+    // Sécurité des en-têtes HTTP
+    app.use(helmet());
+    
+    // Désactiver l'en-tête X-Powered-By
+    app.disable('x-powered-by');
+    
+    // Journalisation en développement
+    if (process.env.NODE_ENV === 'development') {
+      app.use(logger('dev'));
+    }
+    
+    // Configuration CORS
+    const corsOptions = {
+      origin: process.env.NODE_ENV === 'production' 
+        ? ['https://votredomaine.com'] 
+        : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500', 'http://127.0.0.1:5500'],
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      optionsSuccessStatus: 200
+    };
+    app.use(cors(corsOptions));
+    
+    // Gestion des requêtes OPTIONS (pré-vol)
+    app.options('*', cors(corsOptions));
+    
+    // Limiter le nombre de requêtes depuis une même IP
+    const limiter = rateLimit({
+      max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Plus permissif en dev
+      windowMs: 60 * 60 * 1000, // 1 heure
+      message: 'Trop de requêtes depuis cette adresse IP. Veuillez réessayer dans une heure!'
+    });
+    app.use('/api', limiter);
+    
+    // Parser le corps des requêtes
+    app.use(express.json({ limit: '10kb' }));
+    app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+    
+    // Sécurisation des cookies
+    app.use(cookieParser(process.env.COOKIE_SECRET || 'votre-secret-securise'));
+    
+    // Nettoyer les données contre les injections NoSQL
+    app.use(mongoSanitize());
+    
+    // Protection contre les attaques XSS
+    app.use(xss());
+    
+    // Protection contre la pollution des paramètres
+    app.use(hpp({
+      whitelist: [
+        'duration',
+        'ratingsQuantity',
+        'ratingsAverage',
+        'maxGroupSize',
+        'difficulty',
+        'price'
+      ]
+    }));
+    
+    // Protéger contre les attaques de type Clickjacking
+    app.use((req, res, next) => {
+      res.setHeader('X-Frame-Options', 'DENY');
+      res.setHeader('Content-Security-Policy', 'frame-ancestors \'none\'');
+      next();
+    });
+    
+    // 1) SERVIR LES FICHIERS STATIQUES D'ABORD
+    app.use(express.static(path.join(__dirname, 'public'), {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+        } else if (path.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        }
+      }
+    }));
+    
+    // Routes pour les fichiers uploadés
+    app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+    app.use('/images', express.static(path.join(__dirname, 'public/images')));
+    
+    // 2) ROUTES API
+    const indexRouter = require('./routes/index');
+    const usersRouter = require('./routes/users');
+    const uploadRouter = require('./routes/upload');
+    
+    // Montage des routeurs API
+    app.use('/api', indexRouter);  // Ceci va inclure /api/v1/items
+    app.use('/api/users', usersRouter);
+    app.use('/api/upload', uploadRouter);
+    
+    // 3) TOUTES LES AUTRES REQUÊTES RENVOIENT VERS INDEX.HTML (pour le routage côté client)
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    });
+    
+    // 5) GESTION DES ERREURS
+    
+    // Gestion des routes non trouvées
+    app.all('*', (req, res, next) => {
+      res.status(404).json({
+        status: 'fail',
+        message: `Impossible de trouver ${req.originalUrl} sur ce serveur!`
+      });
+    });
+    
+    // Gestion des erreurs globales
+    app.use(globalErrorHandler);
+    
+    return app;
+    
+  } catch (error) {
+    console.error('Erreur lors de l\'initialisation de l\'application:', error);
+    process.exit(1);
+  }
 }
 
-// Limit requests from same API
-const limiter = rateLimit({
-  max: 100,
-  windowMs: 60 * 60 * 1000,
-  message: 'Trop de requêtes depuis cette adresse IP, veuillez réessayer dans une heure!'
-});
-app.use('/api', limiter);
+// Initialiser l'application
+let app;
 
-// Body parser, reading data from body into req.body
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-
-// Data sanitization against NoSQL query injection
-app.use(mongoSanitize());
-
-// Data sanitization against XSS
-app.use(xss());
-
-// Prevent parameter pollution
-app.use(hpp({
-  whitelist: [
-    'duration',
-    'ratingsQuantity',
-    'ratingsAverage',
-    'maxGroupSize',
-    'difficulty',
-    'price'
-  ]
-}));
-
-// Enable CORS with specific options
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://votredomaine.com'] 
-    : ['http://localhost:3000', 'http://127.0.0.1:3000'],
-  credentials: true,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
-
-// Désactiver l'en-tête X-Powered-By
-app.disable('x-powered-by');
-
-// Désactiver le moteur de vue EJS car nous utilisons du HTML statique
-// app.set('views', path.join(__dirname, 'views'));
-// app.set('view engine', 'ejs');
-
-app.use(logger('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-// Sécurisation des cookies
-app.use(cookieParser(process.env.COOKIE_SECRET || 'votre-secret-securise'));
-
-// Protéger contre les attaques de type Clickjacking
-app.use((req, res, next) => {
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', 'frame-ancestors \'none\'');
-  next();
-});
-
-// Configuration des chemins statiques
-app.use(express.static(path.join(__dirname, 'public'), {
-  setHeaders: (res, path) => {
-    if (path.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
-    } else if (path.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript');
-    }
-  }
-}));
-
-// Route pour la page d'accueil - doit être après la configuration des fichiers statiques
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Routes API
-app.use('/api', indexRouter);
-app.use('/api/users', usersRouter);
-
-// Upload route - must be before the catch-all route
-app.use('/upload', uploadRouter);
-
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
-
-// Serve static images
-app.use('/images', express.static(path.join(__dirname, 'public/images')));
-
-// Gestion des routes SPA (Single Page Application) - This should be the last route
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
-});
-
-// error handler
-app.use(function(err, req, res) {
-  // set locals, only providing error in development
-  const isDev = req.app.get('env') === 'development';
-  const status = err.status || 500;
-  
-  // Envoyer une réponse JSON pour les erreurs d'API
-  if (req.originalUrl.startsWith('/api')) {
-    return res.status(status).json({
-      error: {
-        status: status,
-        message: err.message,
-        ...(isDev && { stack: err.stack })
-      }
+// Fonction pour démarrer le serveur
+const startServer = async () => {
+  try {
+    app = await initializeApp();
+    const port = process.env.PORT || 3000;
+    app.listen(port, () => {
+      console.log(`✅ Serveur démarré sur le port ${port} en mode ${process.env.NODE_ENV || 'development'}`);
     });
+  } catch (error) {
+    console.error('Erreur lors du démarrage du serveur:', error);
+    process.exit(1);
   }
-  
-  // Pour les autres routes, envoyer une page d'erreur HTML simple
-  res.status(status);
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="fr">
-      <head>
-        <title>Erreur ${status}</title>
-        <style>
-          body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-          h1 { color: #d32f2f; }
-          pre { text-align: left; background: #f5f5f5; padding: 15px; border-radius: 5px; max-width: 800px; margin: 20px auto; overflow-x: auto; }
-        </style>
-      </head>
-      <body>
-        <h1>Erreur ${status}</h1>
-        <p>${err.message}</p>
-        ${isDev ? `<pre>${err.stack}</pre>` : ''}
-      </body>
-    </html>
-  `);
-});
+};
 
-module.exports = app;
+// Démarrer le serveur si ce fichier est exécuté directement
+if (require.main === module) {
+  startServer();
+}
+
+// Exporter la fonction d'initialisation pour les tests
+module.exports = { initializeApp, startServer };

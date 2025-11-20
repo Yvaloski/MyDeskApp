@@ -1,0 +1,40 @@
+<div class="desktop" 
+     (contextmenu)="onContextMenu($event)"
+     (drop)="onDrop($event)"
+     (dragover)="onDragOver($event)">
+  
+  @for (item of items; track item.id) {
+    @if (item.type === 'folder') {
+      <app-folder 
+        [folder]="item"
+        (moved)="onItemMoved($event)"
+        (contextmenu)="onContextMenu($event, item)"
+        (dblclick)="openItem(item)">
+      </app-folder>
+    } @else {
+      <app-file 
+        [file]="item"
+        (moved)="onItemMoved($event)"
+        (contextmenu)="onContextMenu($event, item)"
+        (dblclick)="openItem(item)">
+      </app-file>
+    }
+  }
+</div>
+
+@if (showContextMenu) {
+  <app-context-menu
+    [x]="contextMenuX"
+    [y]="contextMenuY"
+    [target]="contextMenuTarget"
+    (action)="onContextMenuAction($event)"
+    (close)="showContextMenu = false">
+  </app-context-menu>
+}
+
+@if (showFileExplorer) {
+  <app-file-explorer
+    [path]="fileExplorerPath"
+    (close)="onFileExplorerClose()">
+  </app-file-explorer>
+}

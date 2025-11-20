@@ -118,9 +118,9 @@ export class FileExplorer {
         });
     }
 
-    show(path = '/') {
+    async show(path = '/') {
         this.currentPath = path;
-        this.updateView();
+        await this.updateView();
         this.element.style.display = 'block';
         document.body.style.overflow = 'hidden';
     }
@@ -240,7 +240,7 @@ export class FileExplorer {
             return false;
         };
         
-        this.handleDrop = (e) => {
+        this.handleDrop = async (e) => {
             e.preventDefault();
             e.stopPropagation();
             element.classList.remove('drag-over');
@@ -278,18 +278,22 @@ export class FileExplorer {
                     return;
                 }
                 
-                // Déplacer l'élément
-                const success = this.desktopService.moveItem(data.id, data.sourcePath, targetPath);
-                console.log('Résultat du déplacement :', success);
-                
-                // Mettre à jour l'affichage
-                if (success) {
-                    this.updateView();
+                // Déplacer l'élément (attendre la promesse)
+                try {
+                    const success = await this.desktopService.moveItem(data.id, targetPath);
+                    console.log('Résultat du déplacement :', success);
                     
-                    // Mettre à jour la vue du bureau si nécessaire
-                    if (window.app && typeof window.app.renderFolders === 'function') {
-                        window.app.renderFolders();
+                    // Mettre à jour l'affichage
+                    if (success) {
+                        await this.updateView();
+                        
+                        // Mettre à jour la vue du bureau si nécessaire
+                        if (window.app && typeof window.app.renderFolders === 'function') {
+                            window.app.renderFolders();
+                        }
                     }
+                } catch (error) {
+                    console.error('Erreur lors du déplacement de l\'élément :', error);
                 }
                 
             } catch (error) {
@@ -350,7 +354,7 @@ export class FileExplorer {
     }
     
     // Gestionnaire de dépôt
-    onDrop(e, element, targetItem) {
+    async onDrop(e, element, targetItem) {
         console.log('drop - Dépôt détecté sur :', targetItem.name);
         e.preventDefault();
         e.stopPropagation();
@@ -416,56 +420,80 @@ export class FileExplorer {
         }
     }
 
-    updateView() {
+    async updateView() {
         const content = this.element.querySelector('.file-explorer-content');
         if (!content) return;
         
-        content.innerHTML = '';
+        // Afficher un indicateur de chargement
+        content.innerHTML = `
+            <div class="d-flex justify-content-center my-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+            </div>
+        `;
+        
         const pathElement = this.element.querySelector('.file-explorer-path');
         pathElement.textContent = this.currentPath === '/' ? 'Bureau' : this.currentPath;
 
         const list = document.createElement('ul');
         list.className = 'file-explorer-list';
-        content.appendChild(list);
+        
+        try {
+            // Vider le contenu et recréer la structure
+            content.innerHTML = '';
+            content.appendChild(list);
 
-        // Bouton dossier parent
-        if (this.currentPath !== '/') {
-            const upItem = document.createElement('a');
-            upItem.href = '#';
-            upItem.className = 'file-explorer-item';
-            upItem.innerHTML = `
-                <div class="file-explorer-icon">
-                    <i class="bi bi-arrow-90deg-up"></i>
-                </div>
-                <div class="file-explorer-name">Dossier parent</div>
-            `;
-            upItem.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.goToParent();
+            // Bouton dossier parent
+            if (this.currentPath !== '/') {
+                const upItem = document.createElement('a');
+                upItem.href = '#';
+                upItem.className = 'file-explorer-item';
+                upItem.innerHTML = `
+                    <div class="file-explorer-icon">
+                        <i class="bi bi-arrow-90deg-up"></i>
+                    </div>
+                    <div class="file-explorer-name">Dossier parent</div>
+                `;
+                upItem.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.goToParent();
+                });
+                list.appendChild(upItem);
+            }
+
+            // Récupération des éléments (attendre la promesse)
+            const items = await this.desktopService.getItemsInPath(this.currentPath);
+            
+            if (!items || items.length === 0) {
+                const emptyMessage = document.createElement('div');
+                emptyMessage.className = 'file-explorer-empty';
+                emptyMessage.textContent = 'Ce dossier est vide';
+                content.appendChild(emptyMessage);
+                return;
+            }
+            
+            // Tri des éléments
+            const sortedItems = [...items].sort((a, b) => {
+                if (a.type === 'folder' && b.type !== 'folder') return -1;
+                if (a.type !== 'folder' && b.type === 'folder') return 1;
+                return a.name.localeCompare(b.name);
             });
-            list.appendChild(upItem);
+            
+            // Affichage des éléments
+            sortedItems.forEach(item => this.createListItem(list, item));
+            
+        } catch (error) {
+            console.error('Erreur lors du chargement du contenu:', error);
+            
+            // Afficher un message d'erreur
+            content.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Erreur lors du chargement du contenu du dossier
+                </div>
+            `;
         }
-
-        // Récupération et affichage des éléments
-        const items = this.desktopService.getItemsInPath(this.currentPath);
-        
-        if (items.length === 0) {
-            const emptyMessage = document.createElement('div');
-            emptyMessage.className = 'file-explorer-empty';
-            emptyMessage.textContent = 'Ce dossier est vide';
-            content.appendChild(emptyMessage);
-            return;
-        }
-        
-        // Tri des éléments
-        const sortedItems = [...items].sort((a, b) => {
-            if (a.type === 'folder' && b.type !== 'folder') return -1;
-            if (a.type !== 'folder' && b.type === 'folder') return 1;
-            return a.name.localeCompare(b.name);
-        });
-        
-        // Affichage des éléments
-        sortedItems.forEach(item => this.createListItem(list, item));
     }
 
     createListItem(list, item) {
@@ -587,24 +615,29 @@ export class FileExplorer {
         }
     }
     
-    goToParent() {
+    async goToParent() {
         if (this.currentPath === '/') return;
         const pathParts = this.currentPath.split('/');
         pathParts.pop();
         this.currentPath = pathParts.join('/') || '/';
-        this.updateView();
+        await this.updateView();
     }
 
-    navigateTo(folderName) {
+    async navigateTo(folderName) {
         this.currentPath = `${this.currentPath}${this.currentPath === '/' ? '' : '/'}${folderName}`;
-        this.updateView();
+        await this.updateView();
     }
 
-    createNewFolder() {
+    async createNewFolder() {
         const folderName = prompt('Nom du nouveau dossier :');
         if (folderName) {
-            this.desktopService.createFolder(folderName, this.currentPath);
-            this.updateView();
+            try {
+                await this.desktopService.createFolder(folderName, this.currentPath);
+                await this.updateView();
+            } catch (error) {
+                console.error('Erreur lors de la création du dossier:', error);
+                alert('Erreur lors de la création du dossier');
+            }
         }
     }
 

@@ -6,6 +6,11 @@ class DesktopApp {
     constructor() {
         this.desktop = document.getElementById('desktop');
         this.desktopService = new DesktopService();
+        
+        // Vider le cache au démarrage
+        console.log('Nettoyage du cache au démarrage...');
+        this.desktopService.clearCache();
+        
         this.fileExplorer = new FileExplorer(this.desktopService);
         this.contextMenu = new ContextMenu(document.body);
         this.init();
@@ -17,26 +22,69 @@ class DesktopApp {
         this.setupDesktopEvents();
     }
     
-    renderFolders() {
-        // Nettoyer les éléments existants
-        document.querySelectorAll('.folder, .file').forEach(el => el.remove());
+    async renderFolders() {
+        console.log('=== DÉBUT DU RENDU DES DOSSIERS ===');
         
-        // Afficher les dossiers et fichiers à la racine
-        const items = this.desktopService.getItemsInPath('/');
-        items.forEach(item => {
-            if (item.type === 'folder') {
-                this.createFolderElement(item);
-            } else if (item.type === 'file') {
-                this.createFileElement(item);
+        // Vérifier que le conteneur du bureau existe
+        this.desktop = document.getElementById('desktop');
+        if (!this.desktop) {
+            console.error('ERREUR: Élément #desktop introuvable dans le DOM');
+            return;
+        }
+        
+        console.log('Conteneur desktop trouvé:', this.desktop);
+        
+        // Nettoyer les éléments existants
+        const existingItems = document.querySelectorAll('.folder, .file');
+        console.log(`Suppression de ${existingItems.length} éléments existants`);
+        existingItems.forEach(el => el.remove());
+        
+        try {
+            // Récupérer les éléments
+            console.log('Récupération des éléments...');
+            const items = await this.desktopService.getItemsInPath('/');
+            console.log(`Reçu ${items.length} éléments:`, items);
+            
+            if (items.length === 0) {
+                console.log('Aucun élément à afficher');
+                return;
             }
-        });
+            
+            // Afficher chaque élément
+            items.forEach(item => {
+                if (!item) {
+                    console.warn('Élément invalide (null/undefined)');
+                    return;
+                }
+                
+                console.log(`Affichage de l'élément:`, item);
+                
+                if (item.type === 'folder') {
+                    this.createFolderElement(item);
+                } else if (item.type === 'file') {
+                    this.createFileElement(item);
+                }
+            });
+            
+            console.log('=== FIN DU RENDU DES DOSSIERS ===');
+        } catch (error) {
+            console.error('ERREUR lors du rendu des dossiers:', error);
+        }
     }
     
     createFolderElement(folderData) {
         const folder = document.createElement('div');
         folder.className = 'folder';
-        folder.style.left = `${folderData.x}px`;
-        folder.style.top = `${folderData.y}px`;
+        
+        // Forcer les positions à être des nombres
+        const posX = Number(folderData.x) || 0;
+        const posY = Number(folderData.y) || 0;
+        
+        console.log(`Positionnement du dossier ${folderData.name} (${folderData.id}) à (${posX}, ${posY})`);
+        
+        folder.style.position = 'absolute';
+        folder.style.left = `${posX}px`;
+        folder.style.top = `${posY}px`;
         folder.dataset.id = folderData.id;
         folder.draggable = true;
         
@@ -56,6 +104,9 @@ class DesktopApp {
         // Gestion du glisser-déposer pour déplacer le dossier
         let startX, startY, startLeft, startTop;
         
+        // Créer une copie locale de folderData pour la fermeture
+        const folderDataCopy = { ...folderData };
+        
         folder.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return; // Seulement le bouton gauche de la souris
             
@@ -72,20 +123,38 @@ class DesktopApp {
                 folder.style.top = `${startTop + dy}px`;
             };
             
-            const onMouseUp = () => {
+            const onMouseUp = async () => {
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
                 
-                // Mettre à jour la position dans le service
-                this.desktopService.updateItemPosition(
-                    folderData.id,
-                    parseInt(folder.style.left) || 0,
-                    parseInt(folder.style.top) || 0
-                );
+                try {
+                    const x = parseInt(folder.style.left) || 0;
+                    const y = parseInt(folder.style.top) || 0;
+                    
+                    // Mettre à jour la position dans le service
+                    if (folderDataCopy.id) {
+                        await this.desktopService.updateItemPosition(
+                            folderDataCopy.id,
+                            x,
+                            y
+                        );
+                        
+                        // Mettre à jour les données locales
+                        const item = this.desktopService.items.find(i => i.id === folderDataCopy.id);
+                        if (item) {
+                            item.x = x;
+                            item.y = y;
+                        }
+                    } else {
+                        console.error('Impossible de mettre à jour la position : ID du dossier non défini');
+                    }
+                } catch (error) {
+                    console.error('Erreur lors de la mise à jour de la position du dossier :', error);
+                }
             };
             
             document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('mouseup', onMouseUp, { once: true });
         });
         
         // Gestion du clic droit
@@ -244,7 +313,8 @@ class DesktopApp {
                 if (file) {
                     file.x = x;
                     file.y = y;
-                    this.desktopService.saveItems();
+                    // Ne pas sauvegarder la position dans la base de données
+                    // car nous ne voulons pas persister les positions
                 }
                 
                 positionFound = true;
@@ -374,18 +444,25 @@ class DesktopApp {
         const createFolderBtn = document.getElementById('createFolderBtn');
         
         // Gestion du clic sur le bouton de création
-        createFolderBtn.addEventListener('click', () => {
+        createFolderBtn.addEventListener('click', async () => {
             const folderName = folderNameInput.value.trim();
             if (folderName) {
-                const folder = this.desktopService.createFolder(
-                    folderName,
-                    '/',
-                    Math.random() * (window.innerWidth - 100),
-                    Math.random() * (window.innerHeight - 100)
-                );
-                this.createFolderElement(folder);
-                folderNameInput.value = '';
-                folderModal.hide();
+                try {
+                    const folder = await this.desktopService.createFolder(
+                        folderName,
+                        null, // parentId à null pour la racine
+                        Math.random() * (window.innerWidth - 100),
+                        Math.random() * (window.innerHeight - 100)
+                    );
+                    this.createFolderElement(folder);
+                    folderNameInput.value = '';
+                    folderModal.hide();
+                } catch (error) {
+                    console.error('Erreur lors de la création du dossier:', error);
+                    alert('Erreur lors de la création du dossier: ' + error.message);
+                }
+            } else {
+                alert('Veuillez entrer un nom de dossier valide');
             }
         });
         
@@ -517,31 +594,41 @@ class DesktopApp {
         }
     }
     
-    createNewFolder() {
+    async createNewFolder() {
         const folderName = prompt('Nom du nouveau dossier :', 'Nouveau dossier');
         if (folderName && folderName.trim() !== '') {
-            const folder = this.desktopService.createFolder(
-                folderName.trim(),
-                '/',
-                Math.random() * (window.innerWidth - 100),
-                Math.random() * (window.innerHeight - 100)
-            );
-            this.createFolderElement(folder);
+            try {
+                const folder = await this.desktopService.createFolder(
+                    folderName.trim(),
+                    '/',
+                    Math.random() * (window.innerWidth - 100),
+                    Math.random() * (window.innerHeight - 100)
+                );
+                this.createFolderElement(folder);
+            } catch (error) {
+                console.error('Erreur lors de la création du dossier :', error);
+                alert('Erreur lors de la création du dossier. Veuillez réessayer.');
+            }
         }
     }
     
-    createNewFile() {
+    async createNewFile() {
         const fileName = prompt('Nom du nouveau fichier (avec extension) :', 'nouveau_fichier.txt');
         if (fileName && fileName.trim() !== '') {
-            const file = this.desktopService.createFile(
-                fileName.trim(),
-                '/',
-                Math.random() * (window.innerWidth - 100),
-                Math.random() * (window.innerHeight - 100),
-                '', // Contenu vide par défaut
-                'text/plain' // Type MIME par défaut
-            );
-            this.createFileElement(file);
+            try {
+                const file = await this.desktopService.createFile(
+                    fileName.trim(),
+                    '/',
+                    Math.random() * (window.innerWidth - 100),
+                    Math.random() * (window.innerHeight - 100),
+                    '', // Contenu vide par défaut
+                    'text/plain' // Type MIME par défaut
+                );
+                this.createFileElement(file);
+            } catch (error) {
+                console.error('Erreur lors de la création du fichier :', error);
+                alert('Erreur lors de la création du fichier. Veuillez réessayer.');
+            }
         }
     }
     
