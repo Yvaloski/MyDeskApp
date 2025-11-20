@@ -27,12 +27,7 @@ export class DesktopComponent implements OnInit {
 
   ngOnInit(): void {
     this.desktopService.items$.subscribe(items => {
-      console.log('Items reçus:', items);
       this.items = items.filter(item => !item.parentId || item.parentId === '/' || item.parentId === null);
-      console.log('Items filtrés pour le bureau:', this.items);
-      this.items.forEach(item => {
-        console.log(`Item ${item.name}: x=${item.x}, y=${item.y}, type=${item.type}`);
-      });
     });
   }
 
@@ -43,7 +38,6 @@ export class DesktopComponent implements OnInit {
     this.contextMenuY = event.clientY;
     this.contextMenuTarget = item || null;
     this.showContextMenu = true;
-    console.log('Context menu ouvert - target:', this.contextMenuTarget);
   }
 
   onContextMenuAction(action: string): void {
@@ -125,7 +119,6 @@ Modifié: ${item.updatedAt || 'N/A'}
     if (name) {
       const x = Math.floor(Math.random() * (window.innerWidth - 200)) + 50;
       const y = Math.floor(Math.random() * (window.innerHeight - 200)) + 50;
-      console.log('Création dossier avec position:', { x, y });
       this.desktopService.createFolder(name, null, x, y).subscribe();
     }
   }
@@ -135,7 +128,6 @@ Modifié: ${item.updatedAt || 'N/A'}
     if (name) {
       const x = Math.floor(Math.random() * (window.innerWidth - 200)) + 50;
       const y = Math.floor(Math.random() * (window.innerHeight - 200)) + 50;
-      console.log('Création fichier avec position:', { x, y });
       this.desktopService.createFile(name, null, x, y).subscribe();
     }
   }
@@ -166,7 +158,34 @@ Modifié: ${item.updatedAt || 'N/A'}
   }
 
   onItemMoved(event: { item: Item, x: number, y: number }): void {
-    this.desktopService.updateItemPosition(event.item.id, event.x, event.y).subscribe();
+    console.log('Déplacement détecté:', event);
+    
+    // Mettre à jour la position localement immédiatement pour un meilleur ressenti
+    const item = this.items.find(i => i.id === event.item.id);
+    if (item) {
+      item.x = event.x;
+      item.y = event.y;
+      
+      // Mettre à jour la position dans le service
+      this.desktopService.updateItemPosition(item.id, event.x, event.y).subscribe({
+        next: (updatedItem) => {
+          console.log('Position mise à jour avec succès', updatedItem);
+          // Mettre à jour l'élément dans la liste avec les données du serveur
+          const index = this.items.findIndex(i => i.id === updatedItem.id);
+          if (index !== -1) {
+            this.items[index] = { ...this.items[index], ...updatedItem };
+          }
+        },
+        error: (err) => {
+          console.error('Erreur lors de la mise à jour de la position', err);
+          // Annuler le déplacement en cas d'erreur
+          if (item) {
+            item.x = event.item.x;
+            item.y = event.item.y;
+          }
+        }
+      });
+    }
   }
 
   onFileExplorerClose(): void {

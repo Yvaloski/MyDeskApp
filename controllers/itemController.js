@@ -3,18 +3,30 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 
 // Récupérer tous les éléments
-exports.getAllItems = catchAsync(async (req, res, next) => {
+exports.getAllItems = catchAsync(async (req, res) => {
+  console.log('Récupération de tous les éléments');
   const items = await Item.findAll();
+  
+  // S'assurer que chaque élément a des valeurs x et y valides
+  const processedItems = items.map(item => ({
+    ...item,
+    x: typeof item.x === 'number' ? item.x : 0,
+    y: typeof item.y === 'number' ? item.y : 0
+  }));
+  
+  console.log(`Retour de ${processedItems.length} éléments avec leurs positions`);
   
   res.status(200).json({
     status: 'success',
-    results: items.length,
-    data: items // Retourne directement le tableau d'items
+    results: processedItems.length,
+    data: {
+      items: processedItems
+    }
   });
 });
 
 // Créer un nouveau dossier
-exports.createFolder = catchAsync(async (req, res, next) => {
+exports.createFolder = catchAsync(async (req, res) => {
   const { name, parentId } = req.body;
   const newFolder = await Item.createFolder(name, parentId);
   
@@ -27,7 +39,7 @@ exports.createFolder = catchAsync(async (req, res, next) => {
 });
 
 // Créer un nouveau fichier vide (JSON)
-exports.createFile = catchAsync(async (req, res, next) => {
+exports.createFile = catchAsync(async (req, res) => {
   const { name, parentId, content = '', mimeType = 'text/plain' } = req.body;
   const newFile = await Item.createFile(name, content, parentId, mimeType);
   
@@ -83,7 +95,7 @@ exports.getItemById = catchAsync(async (req, res, next) => {
 });
 
 // Obtenir le contenu d'un dossier
-exports.getDirectory = catchAsync(async (req, res, next) => {
+exports.getDirectory = catchAsync(async (req, res) => {
   // Vérifier si parentId est dans les paramètres de requête ou dans l'URL
   const parentId = req.params.parentId || req.query.parentId || null;
   console.log(`Récupération du contenu du dossier avec parentId: ${parentId}`);
@@ -139,46 +151,85 @@ exports.renameItem = catchAsync(async (req, res, next) => {
 });
 
 // Mettre à jour la position d'un élément
-exports.updateItemPosition = catchAsync(async (req, res, next) => {
+exports.updateItemPosition = catchAsync(async (req, res) => {
+  console.log('=== DEBUT updateItemPosition ===');
+  console.log('Headers de la requête:', JSON.stringify(req.headers, null, 2));
+  console.log('Paramètres de la requête:', { 
+    params: req.params, 
+    body: req.body,
+    method: req.method,
+    url: req.originalUrl
+  });
+  
   const { id } = req.params;
   const { x, y } = req.body;
   
   if (x === undefined || y === undefined) {
+    console.error('Erreur: Les coordonnées x et y sont requises');
     return next(new AppError('Les coordonnées x et y sont requises', 400));
   }
   
+  console.log(`[${new Date().toISOString()}] Mise à jour de la position de l'élément ${id} vers (${x}, ${y})`);
+  
   try {
-    // Récupérer l'élément existant pour déterminer son type
-    const item = await Item.findById(id);
-    if (!item) {
+    console.log(`[${new Date().toISOString()}] Récupération de l'élément existant...`);
+    const existingItem = await Item.findById(id);
+    
+    if (!existingItem) {
+      console.error(`[${new Date().toISOString()}] Erreur: Élément non trouvé avec l'ID ${id}`);
       return next(new AppError('Élément non trouvé', 404));
     }
     
-    // Mettre à jour uniquement les champs nécessaires
-    const updates = {
-      x: parseInt(x, 10),
-      y: parseInt(y, 10),
-      updatedAt: new Date().toISOString(),
-      // Inclure le type pour s'assurer que la clé de partition est correcte
-      type: item.type || (id.startsWith('folder-') ? 'folder' : 'file')
+    console.log(`[${new Date().toISOString()}] Élément existant avant mise à jour:`, JSON.stringify({
+      id: existingItem.id,
+      name: existingItem.name,
+      type: existingItem.type,
+      x: existingItem.x,
+      y: existingItem.y,
+      updatedAt: existingItem.updatedAt
+    }, null, 2));
+    
+    // Mettre à jour uniquement les coordonnées
+    const positionUpdate = { 
+      x: parseFloat(x),
+      y: parseFloat(y),
+      type: existingItem.type, // S'assurer que le type est inclus pour la clé de partition
+      updatedAt: new Date().toISOString()
     };
     
-    // Mettre à jour l'élément dans la base de données
-    const updatedItem = await Item.update(id, updates);
+    console.log(`[${new Date().toISOString()}] Mise à jour de position à appliquer:`, JSON.stringify(positionUpdate, null, 2));
+    
+    console.log(`[${new Date().toISOString()}] Appel de Item.updateItem...`);
+    const updatedItem = await Item.updateItem(id, positionUpdate);
     
     if (!updatedItem) {
-      return next(new AppError('Échec de la mise à jour de la position', 500));
+      console.error(`[${new Date().toISOString()}] Erreur: Échec de la mise à jour de l'élément ${id}`);
+      return next(new AppError('Échec de la mise à jour de l\'élément', 500));
     }
     
-    res.status(200).json({
+    console.log(`[${new Date().toISOString()}] Élément mis à jour avec succès:`, JSON.stringify({
+      id: updatedItem.id,
+      name: updatedItem.name,
+      type: updatedItem.type,
+      x: updatedItem.x,
+      y: updatedItem.y,
+      updatedAt: updatedItem.updatedAt
+    }, null, 2));
+    
+    const response = {
       status: 'success',
       data: {
         item: updatedItem
       }
-    });
+    };
+    
+    console.log(`[${new Date().toISOString()}] Réponse envoyée:`, JSON.stringify(response, null, 2));
+    
+    res.status(200).json(response);
+    console.log(`[${new Date().toISOString()}] === FIN updateItemPosition ===`);
   } catch (error) {
-    console.error('Erreur lors de la mise à jour de la position:', error);
-    return next(new AppError('Erreur lors de la mise à jour de la position', 500));
+    console.error(`[${new Date().toISOString()}] Erreur lors de la mise à jour de la position:`, error);
+    next(error);
   }
 });
 
@@ -200,61 +251,3 @@ exports.deleteItem = catchAsync(async (req, res, next) => {
   });
 });
 
-// Récupérer tous les items
-exports.getAllItems = catchAsync(async (req, res, next) => {
-  const items = await Item.findAll();
-  
-  res.status(200).json({
-    status: 'success',
-    results: items.length,
-    data: {
-      items
-    }
-  });
-});
-
-// Récupérer un item par son ID
-exports.getItem = catchAsync(async (req, res, next) => {
-  const item = await Item.findById(req.params.id);
-  
-  if (!item) {
-    return next(new AppError('Aucun item trouvé avec cet ID', 404));
-  }
-  
-  res.status(200).json({
-    status: 'success',
-    data: {
-      item
-    }
-  });
-});
-
-// Mettre à jour un item
-exports.updateItem = catchAsync(async (req, res, next) => {
-  const item = await Item.update(req.params.id, req.body);
-  
-  if (!item) {
-    return next(new AppError('Aucun item trouvé avec cet ID', 404));
-  }
-  
-  res.status(200).json({
-    status: 'success',
-    data: {
-      item
-    }
-  });
-});
-
-// Supprimer un item
-exports.deleteItem = catchAsync(async (req, res, next) => {
-  const result = await Item.delete(req.params.id);
-  
-  if (!result.success) {
-    return next(new AppError('Aucun item trouvé avec cet ID', 404));
-  }
-  
-  res.status(204).json({
-    status: 'success',
-    data: null
-  });
-});

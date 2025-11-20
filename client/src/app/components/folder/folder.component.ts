@@ -1,23 +1,23 @@
-import { Component, Input, Output, EventEmitter, ElementRef, HostListener } from '@angular/core';
+import {Component, Input, Output, EventEmitter, HostListener} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Item } from '../../models/item.model';
 
 @Component({
   selector: 'app-folder',
   standalone: true,
-  imports: [CommonModule],
+    imports: [CommonModule],
   template: `
-    <div class="folder" 
-         [style.left.px]="folder.x" 
-         [style.top.px]="folder.y"
-         (mousedown)="onMouseDown($event)"
-         (contextmenu)="onContextMenu($event)"
-         (dblclick)="onDoubleClick($event)">
-      <div class="folder-icon">
-        <img src="/images/folder_icon.png" alt="Dossier" width="64" height="64" draggable="false">
+      <div class="folder"
+           [style.left.px]="folder.x"
+           [style.top.px]="folder.y"
+           (mousedown)="onMouseDown($event)"
+           (contextmenu)="onContextMenu($event)"
+           (dblclick)="onDoubleClick($event)">
+          <div class="folder-icon">
+              <img src="/assets/images/Folder.ico" alt="Dossier" width="64" height="64" draggable="false">
+          </div>
+          <div class="folder-name">{{ folder.name }}</div>
       </div>
-      <div class="folder-name">{{ folder.name }}</div>
-    </div>
   `,
   styles: []
 })
@@ -33,7 +33,7 @@ export class FolderComponent {
   private startLeft = 0;
   private startTop = 0;
 
-  constructor(private el: ElementRef) {}
+  constructor() {}
 
   onContextMenu(event: MouseEvent): void {
     event.preventDefault();
@@ -75,6 +75,8 @@ export class FolderComponent {
     if (!this.isDragging) return;
     
     this.isDragging = false;
+    
+    // Mettre à jour la position dans le composant parent
     this.moved.emit({ 
       item: this.folder, 
       x: this.folder.x, 

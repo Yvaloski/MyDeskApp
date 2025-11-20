@@ -1,6 +1,8 @@
 const BaseModel = require('./baseModel');
-const fs = require('fs');
-const path = require('path');
+// SQL dialect configuration for linting
+// noinspection JSUnresolvedReference
+// noinspection SqlResolve
+// noinspection SqlNoDataSourceInspection
 
 class ItemModel extends BaseModel {
     constructor() {
@@ -61,57 +63,62 @@ class ItemModel extends BaseModel {
         try {
             // Construire la requête en fonction de si on est à la racine ou non
             let querySpec;
-            
+
             if (parentId === null) {
-                // Pour la racine, on cherche les éléments sans parent
+                // Si parentId est null, on récupère les éléments à la racine
                 querySpec = {
-                    query: 'SELECT * FROM c WHERE c.parentId = null',
-                    parameters: []
+                    query: 'SELECT * FROM c WHERE c.parentId = null OR c.parentId = @nullValue',
+                    parameters: [
+                        {name: '@nullValue', value: null}
+                    ]
                 };
             } else {
-                // Pour un dossier spécifique, on cherche les éléments avec ce parent
+                // Sinon, on récupère les enfants du dossier spécifié
                 querySpec = {
                     query: 'SELECT * FROM c WHERE c.parentId = @parentId',
                     parameters: [
-                        { name: '@parentId', value: parentId }
+                        {name: '@parentId', value: parentId}
                     ]
                 };
             }
-            
-            console.log('Exécution de la requête:', JSON.stringify(querySpec, null, 2));
-            
-            const results = await this.query(querySpec);
-            console.log(`Contenu brut du dossier ${parentId || 'racine'}:`, results);
-            
-            // Filtrer les résultats pour ne retourner que les éléments valides
-            const processedResults = results.filter(item => item && (item.type === 'folder' || item.type === 'file'));
-            
-            console.log(`Résultats traités (${processedResults.length} éléments):`, processedResults);
-            return processedResults;
+
+            const {resources: items} = await this.container.items.query(querySpec).fetchAll();
+            return items;
         } catch (error) {
             console.error('Erreur lors de la récupération du contenu du dossier:', error);
             throw error;
         }
+
+        // Renommer un élément
+        async
+        renameItem(id, newName)
+        {
+            const item = await this.getById(id);
+            if (!item) throw new Error('Élément non trouvé');
+
+            item.name = newName;
+            item.path = item.parentId
+                ? (await this.getFolderPath(item.parentId)) + '/' + newName
+                : '/' + newName;
+            item.updatedAt = new Date().toISOString();
+
+            return await this.update(id, item);
+        }
     }
 
-    // Renommer un élément
-    async renameItem(id, newName) {
-        const item = await this.getById(id);
-        if (!item) throw new Error('Élément non trouvé');
-        
-        item.name = newName;
-        item.path = item.parentId 
-            ? (await this.getFolderPath(item.parentId)) + '/' + newName 
-            : '/' + newName;
-        item.updatedAt = new Date().toISOString();
-        
-        return await this.update(id, item);
-    }
 
-    // Supprimer un élément (et son contenu si c'est un dossier)
     async deleteItem(id) {
-        // Si c'est un dossier, on supprime d'abord son contenu
-        const children = await this.listDirectory(id);
+        // D'abord, on récupère tous les enfants
+        const querySpec = {
+            query: 'SELECT * FROM c WHERE c.parentId = @id',
+            parameters: [
+                { name: '@id', value: id }
+            ]
+        };
+        
+        const { resources: children } = await this.container.items.query(querySpec).fetchAll();
+        
+        // Supprimer récursivement les enfants
         for (const child of children) {
             await this.deleteItem(child.id);
         }
@@ -120,7 +127,85 @@ class ItemModel extends BaseModel {
         return await this.delete(id);
     }
 
-    // Autres méthodes spécifiques aux items...
+    // Mettre à jour un élément
+    async updateItem(id, updates) {
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] [ItemModel.updateItem] Début de la mise à jour de l'élément ${id}`);
+        console.log(`[${timestamp}] Mises à jour reçues:`, JSON.stringify(updates, null, 2));
+        
+        // Récupérer l'élément existant
+        console.log(`[${timestamp}] Récupération de l'élément existant...`);
+        const existingItem = await this.findById(id);
+        
+        if (!existingItem) {
+            const errorMsg = `[${timestamp}] Erreur: Élément non trouvé avec l'ID ${id}`;
+            console.error(errorMsg);
+            throw new Error('Élément non trouvé');
+        }
+        
+        console.log(`[${timestamp}] Élément existant:`, JSON.stringify({
+            id: existingItem.id,
+            name: existingItem.name,
+            type: existingItem.type,
+            x: existingItem.x,
+            y: existingItem.y,
+            updatedAt: existingItem.updatedAt
+        }, null, 2));
+        
+        console.log('Élément existant avant mise à jour:', JSON.stringify(existingItem, null, 2));
+        
+        // Créer une copie de l'élément existant
+        const updatedItem = { ...existingItem };
+        
+        // Mettre à jour uniquement les champs fournis
+        const updatedFields = [];
+        Object.keys(updates).forEach(key => {
+            if (key in updatedItem && key !== 'id' && !key.startsWith('_')) {
+                const oldValue = updatedItem[key];
+                const newValue = updates[key];
+                
+                // Ne mettre à jour que si la valeur a changé
+                if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+                    updatedItem[key] = newValue;
+                    updatedFields.push({
+                        field: key,
+                        oldValue: oldValue,
+                        newValue: newValue
+                    });
+                }
+            }
+        });
+        
+        // Mettre à jour la date de modification
+        const oldUpdatedAt = updatedItem.updatedAt;
+        updatedItem.updatedAt = new Date().toISOString();
+        
+        console.log(`[${timestamp}] Champs mis à jour:`, JSON.stringify(updatedFields, null, 2));
+        console.log(`[${timestamp}] updatedAt: ${oldUpdatedAt} -> ${updatedItem.updatedAt}`);
+        
+        // Appeler la méthode update du parent
+        console.log(`[${timestamp}] Appel de this.update avec l'ID: ${id} et les mises à jour:`, 
+            JSON.stringify(updatedItem, (key, value) => 
+                key === 'content' ? '[CONTENT]' : value, 2));
+        
+        const result = await this.update(id, updatedItem);
+        
+        if (!result) {
+            console.error(`[${timestamp}] Erreur: Aucun résultat retourné par this.update`);
+            throw new Error('Échec de la mise à jour de l\'élément');
+        }
+        
+        console.log(`[${timestamp}] Mise à jour réussie. Résultat:`, JSON.stringify({
+            id: result.id,
+            name: result.name,
+            type: result.type,
+            x: result.x,
+            y: result.y,
+            updatedAt: result.updatedAt
+        }, null, 2));
+        
+        return result;
+    }
 }
 
 module.exports = new ItemModel();

@@ -22,7 +22,6 @@ export class FileExplorerComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentPath = this.path;
-    console.log('FileExplorer init - path:', this.path);
     this.loadItems();
   }
 
@@ -30,14 +29,10 @@ export class FileExplorerComponent implements OnInit {
     this.loading = true;
     this.desktopService.getItemsInPath(this.currentPath).subscribe({
       next: (items) => {
-        console.log('Items chargés dans explorateur pour', this.currentPath, ':', items);
-        // Filtrer les items selon le chemin actuel
         let filteredItems = items;
         if (this.currentPath === '/') {
-          // Racine : items sans parent
           filteredItems = items.filter(item => !item.parentId);
         } else {
-          // Sous-dossier : items dont le path commence par currentPath
           filteredItems = items.filter(item => 
             item.path && item.path.startsWith(this.currentPath + '/') && 
             item.path.split('/').length === this.currentPath.split('/').length + 1
@@ -49,7 +44,6 @@ export class FileExplorerComponent implements OnInit {
           if (a.type !== 'folder' && b.type === 'folder') return 1;
           return a.name.localeCompare(b.name);
         });
-        console.log('Items filtrés:', this.items);
         this.loading = false;
       },
       error: (err) => {
@@ -119,18 +113,14 @@ export class FileExplorerComponent implements OnInit {
   }
 
   onItemDoubleClick(item: Item): void {
-    console.log('🔥 Double-clic sur:', item.name, 'type:', item.type);
     if (item.type === 'folder') {
-      console.log('Navigation vers:', item.name);
       this.navigateTo(item.name);
     } else {
-      console.log('Ouverture fichier:', item.name);
       this.openFile(item);
     }
   }
 
   openFile(file: Item): void {
-    console.log('Ouverture fichier:', file);
     alert(`Ouverture de ${file.name}\n\nL'éditeur de texte sera implémenté prochainement.`);
   }
 

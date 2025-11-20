@@ -9,7 +9,7 @@ const rateLimit = require('express-rate-limit');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const mongoSanitize = require('express-mongo-sanitize');
-const { initDatabase } = require('./config/cosmos');
+const { initDatabase, database} = require('./config/cosmos');
 const globalErrorHandler = require('./middlewares/error');
 
 // Initialiser la base de données et l'application
@@ -22,6 +22,21 @@ async function initializeApp() {
     const app = express();
     
     // 1) MIDDLEWARES GLOBAUX
+    
+    // Vérifier la connexion à la base de données
+    app.use(async (req, res, next) => {
+      try {
+        // Vérifier que la base de données est accessible
+        await database.read();
+        next();
+      } catch (error) {
+        console.error('Erreur de connexion à la base de données:', error);
+        res.status(500).json({
+          status: 'error',
+          message: 'Erreur de connexion à la base de données'
+        });
+      }
+    });
     
     // Sécurité des en-têtes HTTP
     app.use(helmet());
@@ -89,22 +104,7 @@ async function initializeApp() {
       next();
     });
     
-    // 1) SERVIR LES FICHIERS STATIQUES D'ABORD
-    app.use(express.static(path.join(__dirname, 'public'), {
-      setHeaders: (res, path) => {
-        if (path.endsWith('.css')) {
-          res.setHeader('Content-Type', 'text/css');
-        } else if (path.endsWith('.js')) {
-          res.setHeader('Content-Type', 'application/javascript');
-        }
-      }
-    }));
-    
-    // Routes pour les fichiers uploadés
-    app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
-    app.use('/images', express.static(path.join(__dirname, 'public/images')));
-    
-    // 2) ROUTES API
+    // 1) ROUTES API
     const indexRouter = require('./routes/index');
     const usersRouter = require('./routes/users');
     const uploadRouter = require('./routes/upload');
@@ -114,15 +114,32 @@ async function initializeApp() {
     app.use('/api/users', usersRouter);
     app.use('/api/upload', uploadRouter);
     
-    // 3) TOUTES LES AUTRES REQUÊTES RENVOIENT VERS INDEX.HTML (pour le routage côté client)
+    // 2) SERVIR LES FICHIERS STATIQUES
+    // D'abord les fichiers uploadés
+    app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'), {
+      setHeaders: (res, path) => {
+        if (path.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css');
+        } else if (path.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        }
+      }
+    }));
+    
+    app.use('/images', express.static(path.join(__dirname, 'public/images')));
+    
+    // Ensuite, les fichiers statiques du front-end Angular
+    app.use(express.static(path.join(__dirname, 'client/dist/mydeskapp-client')));
+    
+    // Enfin, pour toutes les autres routes, renvoyer vers index.html pour permettre le routage côté client
     app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'public', 'index.html'));
+      res.sendFile(path.join(__dirname, 'client/dist/mydeskapp-client/index.html'));
     });
     
     // 5) GESTION DES ERREURS
     
-    // Gestion des routes non trouvées
-    app.all('*', (req, res, next) => {
+    // Gestion des erreurs 404 pour les routes API
+    app.use('/api/*', (req, res) => {
       res.status(404).json({
         status: 'fail',
         message: `Impossible de trouver ${req.originalUrl} sur ce serveur!`

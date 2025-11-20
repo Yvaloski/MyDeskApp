@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, map } from 'rxjs';
+import { BehaviorSubject, Observable, tap, map, catchError, of } from 'rxjs';
 import { Item, ApiResponse } from '../models/item.model';
 
 @Injectable({
@@ -18,20 +18,33 @@ export class DesktopService {
   loadItems(): void {
     this.getItemsInPath('/').subscribe({
       next: (items) => {
-        console.log('Items chargés depuis l\'API:', items);
         this.itemsSubject.next(items);
       },
       error: (err) => console.error('Erreur lors du chargement des items:', err)
     });
   }
 
+
   getItemsInPath(path: string = '/'): Observable<Item[]> {
-    return this.http.get<any>(`${this.apiUrl}`).pipe(
-      map((response: any) => {
+    console.log('Chargement des éléments depuis le chemin:', path);
+    return this.http.get<ApiResponse<{ items: Item[] }>>(this.apiUrl).pipe(
+      map((response) => {
         if (response?.data?.items && Array.isArray(response.data.items)) {
-          return response.data.items;
+          // S'assurer que chaque élément a des valeurs par défaut pour x et y
+          const items = response.data.items.map((item: Item) => ({
+            ...item,
+            x: item.x ?? Math.floor(Math.random() * 500),
+            y: item.y ?? Math.floor(Math.random() * 300)
+          }));
+          console.log('Éléments chargés avec positions:', items.map(i => `${i.name}: (${i.x}, ${i.y})`));
+          return items;
         }
+        console.warn('Aucun élément trouvé ou format de réponse inattendu:', response);
         return [];
+      }),
+      catchError(error => {
+        console.error('Erreur lors du chargement des éléments:', error);
+        return of([]);
       })
     );
   }
@@ -51,8 +64,6 @@ export class DesktopService {
       type: 'folder'
     }).pipe(
       tap(response => {
-        console.log('Dossier créé:', response.data.folder);
-        // Ajouter au cache local immédiatement
         const currentItems = this.itemsSubject.value;
         const folder = response.data.folder;
         const existingIndex = currentItems.findIndex(item => item.id === folder.id);
@@ -79,8 +90,6 @@ export class DesktopService {
       size: content.length
     }).pipe(
       tap(response => {
-        console.log('Fichier créé:', response.data.file);
-        // Ajouter au cache local immédiatement
         const currentItems = this.itemsSubject.value;
         const file = response.data.file;
         const existingIndex = currentItems.findIndex(item => item.id === file.id);
@@ -96,13 +105,33 @@ export class DesktopService {
   }
 
   updateItemPosition(itemId: string, x: number, y: number): Observable<Item> {
-    return this.http.patch<ApiResponse<{ item: Item }>>(`${this.apiUrl}/${itemId}/position`, { x, y }).pipe(
+    console.log(`Mise à jour de la position de l'élément ${itemId} vers (${x}, ${y})`);
+    
+    return this.http.patch<ApiResponse<{ item: Item }>>(
+      `${this.apiUrl}/${itemId}/position`,
+      { x, y }
+    ).pipe(
       tap(response => {
-        const currentItems = this.itemsSubject.value;
-        const index = currentItems.findIndex(item => item.id === itemId);
-        if (index !== -1) {
-          currentItems[index] = { ...currentItems[index], x, y };
-          this.itemsSubject.next([...currentItems]);
+        console.log('Réponse de la mise à jour de position:', response);
+        if (response && response.data && response.data.item) {
+          const updatedItem = response.data.item;
+          const currentItems = this.itemsSubject.value;
+          const index = currentItems.findIndex(item => item.id === itemId);
+          
+          if (index !== -1) {
+            // Mettre à jour l'élément avec les données du serveur
+            const updatedItems = [...currentItems];
+            updatedItems[index] = { 
+              ...updatedItems[index], 
+              ...updatedItem,
+              x: typeof updatedItem.x === 'number' ? updatedItem.x : x,
+              y: typeof updatedItem.y === 'number' ? updatedItem.y : y
+            };
+            this.itemsSubject.next(updatedItems);
+            console.log('Liste des items mise à jour avec la nouvelle position');
+          } else {
+            console.warn(`L'élément avec l'ID ${itemId} n'a pas été trouvé dans la liste actuelle`);
+          }
         }
       }),
       map(response => response.data.item)
@@ -111,9 +140,7 @@ export class DesktopService {
 
   deleteItem(itemId: string): Observable<void> {
     return this.http.delete<any>(`${this.apiUrl}/${itemId}`).pipe(
-      tap((response) => {
-        console.log('Item supprimé:', response);
-        // Retirer du cache local immédiatement
+      tap(() => {
         const currentItems = this.itemsSubject.value;
         this.itemsSubject.next(currentItems.filter(item => item.id !== itemId));
       }),

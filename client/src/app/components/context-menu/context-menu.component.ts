@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, HostListener, OnInit } from '@angular/core';
+import { Component, Input, Output, EventEmitter, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Item } from '../../models/item.model';
 
@@ -68,16 +68,12 @@ import { Item } from '../../models/item.model';
   `,
   styles: []
 })
-export class ContextMenuComponent implements OnInit {
+export class ContextMenuComponent {
   @Input() x = 0;
   @Input() y = 0;
   @Input() target: Item | null = null;
   @Output() action = new EventEmitter<string>();
   @Output() close = new EventEmitter<void>();
-
-  ngOnInit(): void {
-    console.log('ContextMenu - target:', this.target);
-  }
 
   @HostListener('document:click', ['$event'])
   onDocumentClick(): void {

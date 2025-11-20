@@ -29,6 +29,9 @@ router.post('/folders', itemController.createFolder);
 // Créer un fichier vide (JSON)
 router.post('/files/create', itemController.createFile);
 
+// Mettre à jour la position d'un élément (dossier ou fichier)
+router.patch('/:id/position', itemController.updateItemPosition);
+
 // Upload un fichier (multipart)
 router.post(
   '/files',

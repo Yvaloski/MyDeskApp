@@ -17,10 +17,40 @@ async function initDatabase() {
         // Crée la base de données si elle n'existe pas
         const { database: db } = await client.databases.createIfNotExists({ id: databaseId });
         
-        // Crée le conteneur avec une clé de partition '/type'
+        // Crée le conteneur avec une clé de partition '/type' et les index nécessaires
         await db.containers.createIfNotExists({
             id: containerId,
-            partitionKey: { paths: ["/type"] }
+            partitionKey: { paths: ["/type"] },
+            indexingPolicy: {
+                indexingMode: "consistent",
+                automatic: true,
+                includedPaths: [
+                    {
+                        path: "/*"
+                    }
+                ],
+                excludedPaths: [
+                    {
+                        path: "/\"_etag\"/?"
+                    }
+                ]
+            }
+        });
+        
+        // Vérifier et mettre à jour la politique d'indexation si nécessaire
+        const { resource: containerDef } = await container.read();
+        await container.replace({
+            ...containerDef,
+            indexingPolicy: {
+                ...containerDef.indexingPolicy,
+                automatic: true,
+                indexingMode: "consistent",
+                includedPaths: [
+                    {
+                        path: "/*"
+                    }
+                ]
+            }
         });
         
         console.log('Base de données et conteneur prêts');
