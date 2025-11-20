@@ -5,8 +5,14 @@
     padding: 10px;
     cursor: pointer;
     user-select: none;
-    transition: background-color var(--transition-fast);
-    animation: fadeIn 0.3s ease-out;
+}
+
+.folder[draggable="true"] {
+    cursor: move;
+}
+
+.folder.drag-over {
+    background-color: var(--folder-hover);
 }
 
 .folder:hover {
