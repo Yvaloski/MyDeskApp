@@ -7,7 +7,7 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: 'mydeskapp'
-  NODE_VERSION: '22.x'  # Version LTS plus stable
+  NODE_VERSION: '22.x'  # Version LTS stable
 
 jobs:
   build-and-deploy:
@@ -23,24 +23,14 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
 
-    # Désactiver le postinstall
-    - name: Disable postinstall script
-      run: |
-        npm pkg delete scripts.postinstall
-
     - name: Install root dependencies
       run: npm ci --omit=dev
 
-    - name: Setup client
+    - name: Install and build Angular app
       working-directory: ./client
       run: |
-        npm ci --legacy-peer-deps
-        npm install @angular/cli @angular-devkit/build-angular --save-dev
-        npx ng version
-        
-    - name: Build Angular app
-      working-directory: ./client
-      run: npx ng build --configuration production --output-hashing=all
+        npm ci
+        npm run build -- --configuration production --output-hashing=all
 
     - name: Prepare deployment package
       run: |
