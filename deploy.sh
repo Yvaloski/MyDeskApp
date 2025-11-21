@@ -18,9 +18,13 @@ if [ -d "client" ]; then
     echo "📦 Installing Angular CLI..."
     npm install -g @angular/cli@latest
     
-    # Install dependencies
+    # Install dependencies with legacy peer deps
     echo "📦 Installing frontend dependencies..."
-    npm install
+    npm install --legacy-peer-deps
+    
+    # Install Angular build tools
+    echo "🔨 Installing Angular build tools..."
+    npm install @angular-devkit/build-angular --save-dev
     
     # Build Angular app
     echo "🔨 Building Angular application..."

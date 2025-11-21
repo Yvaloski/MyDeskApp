@@ -6,7 +6,7 @@
     "start": "node ./bin/www",
     "dev": "nodemon ./bin/www",
     "build": "npm install --production",
-    "postinstall": "if [ -d \"client\" ]; then cd client && npm install -g @angular/cli@latest && npm install && npm run build -- --configuration production --output-hashing=all && cd ..; fi",
+    "postinstall": "if [ -d \"client\" ]; then cd client && npm install -g @angular/cli@latest && npm install --legacy-peer-deps && npm install @angular-devkit/build-angular && npm run build -- --configuration production --output-hashing=all && cd ..; fi",
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
