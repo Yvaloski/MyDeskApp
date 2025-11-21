@@ -94,6 +94,52 @@ class BaseModel {
     }
 
 
+    // Alias pour la compatibilité avec le code existant
+    async getById(id, partitionKeyValue = null) {
+        return this.findById(id, partitionKeyValue);
+    }
+
+    // Supprimer un élément par son ID
+    async deleteById(id, partitionKeyValue = null) {
+        try {
+            // Déterminer la clé de partition en fonction du type d'élément
+            let pk = partitionKeyValue;
+            
+            // Si aucune clé de partition n'est fournie, la déterminer à partir de l'ID
+            if (!pk) {
+                if (id && id.startsWith('folder-')) {
+                    pk = 'folder';
+                } else if (id && id.startsWith('file-')) {
+                    pk = 'file';
+                } else {
+                    pk = this.partitionKey;
+                }
+            }
+            
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`[BaseModel.deleteById] Tentative de suppression de l'élément ${id} avec la clé de partition '${pk}'`);
+            }
+            
+            // Vérifier d'abord si l'élément existe
+            const item = await this.findById(id, pk);
+            if (!item) {
+                throw new Error(`Élément avec l'ID ${id} non trouvé`);
+            }
+            
+            // Supprimer l'élément
+            await this.container.item(id, pk).delete();
+            
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`[BaseModel.deleteById] Élément ${id} supprimé avec succès`);
+            }
+            
+            return { id };
+        } catch (error) {
+            console.error(`[BaseModel.deleteById] Erreur lors de la suppression de l'élément ${id}:`, error);
+            throw error;
+        }
+    }
+
     async findAll(querySpec = {}) {
         const { resources } = await this.container.items
             .query({
