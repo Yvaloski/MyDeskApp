@@ -15,36 +15,31 @@ jobs:
     environment: production
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Set up Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
 
     - name: Install root dependencies
-      run: npm ci
+      run: npm ci --omit=dev
 
-    - name: Install Angular CLI globally
-      run: sudo npm install -g @angular/cli@latest
+    - name: Install Angular CLI
+      run: npm install -g @angular/cli@latest
 
-    - name: Install client dependencies
+    - name: Install and build client
       working-directory: ./client
-      run: npm ci --legacy-peer-deps
-
-    - name: Build Angular app
-      working-directory: ./client
-      run: npm run build -- --configuration production --output-hashing=all
-
-    - name: Install production dependencies
-      run: npm ci --production
-
-    - name: Create wwwroot directory
-      run: mkdir -p wwwroot
-
-    - name: Copy files to wwwroot
       run: |
+        npm ci --legacy-peer-deps
+        npm install @angular-devkit/build-angular --legacy-peer-deps
+        npm run build -- --configuration production --output-hashing=all
+
+    - name: Prepare deployment package
+      run: |
+        mkdir -p wwwroot
         cp -r client/dist/mydeskapp-client/* wwwroot/
         cp -r bin/ wwwroot/bin/
         cp -r routes/ wwwroot/routes/
@@ -52,11 +47,12 @@ jobs:
         cp app.js wwwroot/
         cp package*.json wwwroot/
 
-    - name: Upload artifact for deployment job
+    - name: Upload artifact for deployment
       uses: actions/upload-artifact@v4
       with:
         name: node-app
         path: wwwroot/
+        retention-days: 1
 
   deploy:
     runs-on: ubuntu-latest
@@ -65,13 +61,13 @@ jobs:
 
     steps:
     - name: Download artifact from build job
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: node-app
         path: .
 
     - name: 'Deploy to Azure Web App'
-      uses: azure/webapps-deploy@v2
+      uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
@@ -84,7 +80,6 @@ jobs:
         echo "Deployment details: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
     - name: Deployment status
-      id: deploy
       if: always()
       run: |
         if [ "${{ job.status }}" = 'success' ]; then
