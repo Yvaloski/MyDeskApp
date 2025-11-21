@@ -59,21 +59,32 @@ jobs:
 
     - name: Prepare deployment package
       run: |
-        # Vérifier la structure du répertoire de build
-        echo "=== Structure du répertoire client/dist/ ==="
-        ls -la client/dist/
+        # Afficher la structure complète du répertoire client/dist
+        echo "=== Structure complète du répertoire client/dist/ ==="
+        find client/dist/ -type f -o -type d | sort
         
-        # Créer le répertoire wwwroot
-        mkdir -p wwwroot
-        
-        # Copier les fichiers du client
-        if [ -d "client/dist/mydeskapp-client" ]; then
-          echo "Copie des fichiers depuis client/dist/mydeskapp-client/ vers wwwroot/"
-          cp -r client/dist/mydeskapp-client/. wwwroot/
-        else
-          echo "ERREUR : client/dist/mydeskapp-client/ n'existe pas"
+        # Vérifier si le répertoire source existe
+        if [ ! -d "client/dist/mydeskapp-client" ]; then
+          echo "ERREUR: Le répertoire client/dist/mydeskapp-client n'existe pas"
+          echo "Contenu de client/dist/:"
+          ls -la client/dist/
           exit 1
         fi
+        
+        # Afficher le contenu du répertoire source
+        echo "=== Contenu de client/dist/mydeskapp-client/ ==="
+        ls -la client/dist/mydeskapp-client/
+        
+        # Créer le répertoire de destination
+        mkdir -p wwwroot
+        
+        # Copier les fichiers avec plus de verbosité
+        echo "Copie des fichiers depuis client/dist/mydeskapp-client/ vers wwwroot/"
+        cp -v -r client/dist/mydeskapp-client/. wwwroot/
+        
+        # Vérifier ce qui a été copié
+        echo "=== Contenu de wwwroot/ après copie ==="
+        find wwwroot/ -type f -o -type d | sort
         
         # Copier les autres fichiers nécessaires
         echo "Copie des fichiers du backend..."
