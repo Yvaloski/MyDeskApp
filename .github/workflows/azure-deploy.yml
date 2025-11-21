@@ -10,7 +10,7 @@ env:
   NODE_VERSION: '22.x'  # Version LTS stable
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     environment: production
 
@@ -116,7 +116,7 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: build-and-deploy
+    needs: build
     environment: production
 
     steps:
