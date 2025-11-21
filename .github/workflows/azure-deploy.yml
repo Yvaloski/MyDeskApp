@@ -28,7 +28,12 @@ jobs:
         cache: 'npm'
         cache-dependency-path: '**/package-lock.json'
 
-    - name: Install dependencies
+    - name: Install backend dependencies
+      run: |
+        npm install --no-audit --prefer-offline
+        
+    - name: Install frontend dependencies
+      working-directory: ./client
       run: |
         npm install --no-audit --prefer-offline
         
@@ -40,7 +45,12 @@ jobs:
       run: |
         npm test --if-present
         
-    - name: Build application
+    - name: Build frontend
+      working-directory: ./client
+      run: |
+        npm run build --configuration=production
+        
+    - name: Build backend
       run: |
         npm run build --if-present
 
