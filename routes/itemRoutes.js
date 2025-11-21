@@ -48,6 +48,9 @@ router.get('/files/:fileId/download', itemController.downloadFile);
 // Mettre à jour la position d'un élément
 router.patch('/:id/position', itemController.updateItemPosition);
 
+// Supprimer un élément
+router.delete('/:id', itemController.deleteItem);
+
 // Renommer un élément (fichier ou dossier)
 router.patch('/:id/rename', itemController.renameItem);
 

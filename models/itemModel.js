@@ -90,6 +90,30 @@ class ItemModel extends BaseModel {
         }
     }
 
+    // Supprimer un élément par son ID
+    async deleteById(id) {
+        try {
+            // Déterminer la clé de partition en fonction du type d'élément
+            let partitionKey;
+            if (id.startsWith('folder-')) {
+                partitionKey = 'folder';
+            } else if (id.startsWith('file-')) {
+                partitionKey = 'file';
+            } else {
+                partitionKey = this.partitionKey;
+            }
+
+            console.log(`Tentative de suppression de l'élément ${id} avec la clé de partition '${partitionKey}'`);
+            
+            const { resource: result } = await this.container.item(id, partitionKey).delete();
+            console.log('Élément supprimé avec succès:', id);
+            return result;
+        } catch (error) {
+            console.error('Erreur lors de la suppression de l\'élément:', error);
+            throw error;
+        }
+    }
+
     // Renommer un élément
     async renameItem(id, newName) {
         const item = await this.getById(id);

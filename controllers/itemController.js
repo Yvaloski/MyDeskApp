@@ -155,6 +155,28 @@ exports.renameItem = catchAsync(async (req, res, next) => {
   });
 });
 
+// Supprimer un élément
+exports.deleteItem = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Tentative de suppression de l'élément avec l'ID: ${id}`);
+  }
+  
+  const item = await Item.getById(id);
+  
+  if (!item) {
+    return next(new AppError('Aucun élément trouvé avec cet ID', 404));
+  }
+  
+  await Item.deleteById(id);
+  
+  res.status(204).json({
+    status: 'success',
+    data: null
+  });
+});
+
 // Mettre à jour la position d'un élément
 exports.updateItemPosition = catchAsync(async (req, res, next) => {
   if (process.env.NODE_ENV !== 'production') {
