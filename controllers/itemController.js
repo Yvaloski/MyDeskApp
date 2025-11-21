@@ -4,7 +4,10 @@ const catchAsync = require('../utils/catchAsync');
 
 // Récupérer tous les éléments
 exports.getAllItems = catchAsync(async (req, res) => {
-  console.log('Récupération de tous les éléments');
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Récupération de tous les éléments');
+  }
+  
   const items = await Item.findAll();
   
   // S'assurer que chaque élément a des valeurs x et y valides
@@ -14,7 +17,9 @@ exports.getAllItems = catchAsync(async (req, res) => {
     y: typeof item.y === 'number' ? item.y : 0
   }));
   
-  console.log(`Retour de ${processedItems.length} éléments avec leurs positions`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`Retour de ${processedItems.length} éléments avec leurs positions`);
+  }
   
   res.status(200).json({
     status: 'success',
@@ -151,15 +156,17 @@ exports.renameItem = catchAsync(async (req, res, next) => {
 });
 
 // Mettre à jour la position d'un élément
-exports.updateItemPosition = catchAsync(async (req, res) => {
-  console.log('=== DEBUT updateItemPosition ===');
-  console.log('Headers de la requête:', JSON.stringify(req.headers, null, 2));
-  console.log('Paramètres de la requête:', { 
-    params: req.params, 
-    body: req.body,
-    method: req.method,
-    url: req.originalUrl
-  });
+exports.updateItemPosition = catchAsync(async (req, res, next) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('=== DEBUT updateItemPosition ===');
+    console.log('Headers de la requête:', JSON.stringify(req.headers, null, 2));
+    console.log('Paramètres de la requête:', { 
+      params: req.params, 
+      body: req.body,
+      method: req.method,
+      url: req.originalUrl
+    });
+  }
   
   const { id } = req.params;
   const { x, y } = req.body;
@@ -169,10 +176,11 @@ exports.updateItemPosition = catchAsync(async (req, res) => {
     return next(new AppError('Les coordonnées x et y sont requises', 400));
   }
   
-  console.log(`[${new Date().toISOString()}] Mise à jour de la position de l'élément ${id} vers (${x}, ${y})`);
-  
   try {
-    console.log(`[${new Date().toISOString()}] Récupération de l'élément existant...`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[${new Date().toISOString()}] Récupération de l'élément existant...`);
+    }
+    
     const existingItem = await Item.findById(id);
     
     if (!existingItem) {
@@ -180,16 +188,17 @@ exports.updateItemPosition = catchAsync(async (req, res) => {
       return next(new AppError('Élément non trouvé', 404));
     }
     
-    console.log(`[${new Date().toISOString()}] Élément existant avant mise à jour:`, JSON.stringify({
-      id: existingItem.id,
-      name: existingItem.name,
-      type: existingItem.type,
-      x: existingItem.x,
-      y: existingItem.y,
-      updatedAt: existingItem.updatedAt
-    }, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[${new Date().toISOString()}] Élément existant avant mise à jour:`, JSON.stringify({
+        id: existingItem.id,
+        name: existingItem.name,
+        type: existingItem.type,
+        x: existingItem.x,
+        y: existingItem.y,
+        updatedAt: existingItem.updatedAt
+      }, null, 2));
+    }
     
-    // Mettre à jour uniquement les coordonnées
     const positionUpdate = { 
       x: parseFloat(x),
       y: parseFloat(y),
@@ -197,24 +206,31 @@ exports.updateItemPosition = catchAsync(async (req, res) => {
       updatedAt: new Date().toISOString()
     };
     
-    console.log(`[${new Date().toISOString()}] Mise à jour de position à appliquer:`, JSON.stringify(positionUpdate, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[${new Date().toISOString()}] Mise à jour de position à appliquer:`, JSON.stringify(positionUpdate, null, 2));
+    }
     
-    console.log(`[${new Date().toISOString()}] Appel de Item.updateItem...`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[${new Date().toISOString()}] Appel de Item.updateItem...`);
+    }
+    
     const updatedItem = await Item.updateItem(id, positionUpdate);
     
     if (!updatedItem) {
-      console.error(`[${new Date().toISOString()}] Erreur: Échec de la mise à jour de l'élément ${id}`);
-      return next(new AppError('Échec de la mise à jour de l\'élément', 500));
+      console.error(`[${new Date().toISOString()}] Échec de la mise à jour de la position`);
+      return next(new AppError('Échec de la mise à jour de la position', 500));
     }
     
-    console.log(`[${new Date().toISOString()}] Élément mis à jour avec succès:`, JSON.stringify({
-      id: updatedItem.id,
-      name: updatedItem.name,
-      type: updatedItem.type,
-      x: updatedItem.x,
-      y: updatedItem.y,
-      updatedAt: updatedItem.updatedAt
-    }, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[${new Date().toISOString()}] Position mise à jour avec succès:`, JSON.stringify({
+        id: updatedItem.id,
+        name: updatedItem.name,
+        type: updatedItem.type,
+        x: updatedItem.x,
+        y: updatedItem.y,
+        updatedAt: updatedItem.updatedAt
+      }, null, 2));
+    }
     
     const response = {
       status: 'success',
@@ -223,10 +239,15 @@ exports.updateItemPosition = catchAsync(async (req, res) => {
       }
     };
     
-    console.log(`[${new Date().toISOString()}] Réponse envoyée:`, JSON.stringify(response, null, 2));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[${new Date().toISOString()}] Réponse envoyée:`, JSON.stringify(response, null, 2));
+    }
     
     res.status(200).json(response);
-    console.log(`[${new Date().toISOString()}] === FIN updateItemPosition ===`);
+    
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[${new Date().toISOString()}] === FIN updateItemPosition ===`);
+    }
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Erreur lors de la mise à jour de la position:`, error);
     next(error);

@@ -9,33 +9,24 @@ const rateLimit = require('express-rate-limit');
 const xss = require('xss-clean');
 const hpp = require('hpp');
 const mongoSanitize = require('express-mongo-sanitize');
-const { initDatabase, database} = require('./config/cosmos');
+const { initDatabase} = require('./config/cosmos');
 const globalErrorHandler = require('./middlewares/error');
 
-// Initialiser la base de données et l'application
+// Initialiser l'application avec Cosmos DB
 async function initializeApp() {
   try {
-    // Initialiser la connexion à la base de données
+    // Initialiser la connexion à Cosmos DB
     await initDatabase();
-    console.log('✅ Base de données initialisée avec succès');
+    process.env.NODE_ENV !== 'production' && console.log('✅ Base de données Cosmos DB initialisée avec succès');
     
     const app = express();
     
     // 1) MIDDLEWARES GLOBAUX
     
-    // Vérifier la connexion à la base de données
-    app.use(async (req, res, next) => {
-      try {
-        // Vérifier que la base de données est accessible
-        await database.read();
-        next();
-      } catch (error) {
-        console.error('Erreur de connexion à la base de données:', error);
-        res.status(500).json({
-          status: 'error',
-          message: 'Erreur de connexion à la base de données'
-        });
-      }
+    // Middleware pour ajouter l'heure de la requête
+    app.use((req, res, next) => {
+      req.requestTime = new Date().toISOString();
+      next();
     });
     
     // Sécurité des en-têtes HTTP

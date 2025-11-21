@@ -85,27 +85,24 @@ class ItemModel extends BaseModel {
             const {resources: items} = await this.container.items.query(querySpec).fetchAll();
             return items;
         } catch (error) {
-            console.error('Erreur lors de la récupération du contenu du dossier:', error);
+            process.env.NODE_ENV !== 'production' && console.error('Erreur lors de la récupération du contenu du dossier:', error);
             throw error;
-        }
-
-        // Renommer un élément
-        async
-        renameItem(id, newName)
-        {
-            const item = await this.getById(id);
-            if (!item) throw new Error('Élément non trouvé');
-
-            item.name = newName;
-            item.path = item.parentId
-                ? (await this.getFolderPath(item.parentId)) + '/' + newName
-                : '/' + newName;
-            item.updatedAt = new Date().toISOString();
-
-            return await this.update(id, item);
         }
     }
 
+    // Renommer un élément
+    async renameItem(id, newName) {
+        const item = await this.getById(id);
+        if (!item) throw new Error('Élément non trouvé');
+
+        item.name = newName;
+        item.path = item.parentId
+            ? (await this.getFolderPath(item.parentId)) + '/' + newName
+            : '/' + newName;
+        item.updatedAt = new Date().toISOString();
+
+        return this.update(id, item);
+    }
 
     async deleteItem(id) {
         // D'abord, on récupère tous les enfants

@@ -41,7 +41,9 @@ class BaseModel {
                 }
             }
             
-            console.log(`[BaseModel.findById] Recherche de l'élément ${id} avec la clé de partition '${pk}'`);
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`[BaseModel.findById] Recherche de l'élément ${id} avec la clé de partition '${pk}'`);
+            }
             
             const { resource } = await this.container.item(id, pk).read();
             
@@ -52,20 +54,27 @@ class BaseModel {
                     x: typeof resource.x === 'number' ? resource.x : 0,
                     y: typeof resource.y === 'number' ? resource.y : 0
                 };
-                console.log(`[BaseModel.findById] Élément trouvé:`, JSON.stringify({
-                    id: result.id,
-                    type: result.type,
-                    x: result.x,
-                    y: result.y
-                }));
+                
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('[BaseModel.findById] Élément trouvé:', JSON.stringify({
+                        id: result.id,
+                        type: result.type,
+                        x: result.x,
+                        y: result.y
+                    }));
+                }
                 return result;
             }
             
-            console.log(`[BaseModel.findById] Aucun élément trouvé avec l'ID ${id} et la clé de partition '${pk}'`);
+            if (process.env.NODE_ENV !== 'production') {
+                console.log(`[BaseModel.findById] Aucun élément trouvé avec l'ID ${id} et la clé de partition '${pk}'`);
+            }
             return null;
         } catch (error) {
             if (error.code === 404) {
-                console.log(`[BaseModel.findById] Erreur 404 pour l'ID ${id} avec la clé de partition '${partitionKeyValue || this.partitionKey}':`, error.message);
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log(`[BaseModel.findById] Erreur 404 pour l'ID ${id} avec la clé de partition '${partitionKeyValue || this.partitionKey}':`, error.message);
+                }
                 
                 // Si l'élément n'est pas trouvé avec la clé de partition fournie,
                 // essayer avec une clé de partition différente
@@ -84,10 +93,7 @@ class BaseModel {
         }
     }
 
-    // Trouver tous les éléments (avec pagination)
-    // SQL dialect configuration for linting
-    // noinspection SqlDialectInspection
-    // noinspection SqlNoDataSourceInspection
+
     async findAll(querySpec = {}) {
         const { resources } = await this.container.items
             .query({
