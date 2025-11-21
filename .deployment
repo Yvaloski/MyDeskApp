@@ -6,3 +6,10 @@ WEBSITE_NODE_DEFAULT_VERSION=22.x
 ENABLE_ORYX_BUILD=true
 SCM_COMMAND_IDLE_TIMEOUT=600
 SCM_LOGSTREAM_TIMEOUT=600
+
+[build]
+command = "npm install --production && npm run build"
+
+[build.env]
+NPM_CONFIG_PRODUCTION = "true"
+NODE_ENV = "production"

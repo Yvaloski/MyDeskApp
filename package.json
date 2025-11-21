@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node ./bin/www",
     "dev": "nodemon ./bin/www",
-    "build": "npm install && npm run lint",
+    "build": "if [ -n \"$NPM_CONFIG_PRODUCTION\" ]; then npm install --production; else npm install && npm run lint; fi",
     "test": "jest --passWithNoTests",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
