@@ -8,8 +8,11 @@ SCM_COMMAND_IDLE_TIMEOUT=600
 SCM_LOGSTREAM_TIMEOUT=600
 
 [build]
-command = "npm install --production && npm run build"
+command = "npm install --production"
 
 [build.env]
 NPM_CONFIG_PRODUCTION = "true"
 NODE_ENV = "production"
+
+# Disable Oryx build for custom deployment
+SCM_DO_BUILD_DURING_DEPLOYMENT = 0
