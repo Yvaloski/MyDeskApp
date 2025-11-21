@@ -59,30 +59,45 @@ jobs:
 
     - name: Prepare deployment package
       run: |
-        # Créer le répertoire wwwroot s'il n'existe pas
+        # Vérifier la structure du répertoire de build
+        echo "=== Structure du répertoire client/dist/ ==="
+        ls -la client/dist/
+        
+        # Créer le répertoire wwwroot
         mkdir -p wwwroot
         
-        # Copier les fichiers du client
+        # Copier les fichiers du client (en vérifiant d'abord le chemin exact)
         if [ -d "client/dist/mydeskapp-client" ]; then
+          echo "Copie des fichiers depuis client/dist/mydeskapp-client/"
           cp -r client/dist/mydeskapp-client/* wwwroot/
+        elif [ -d "client/dist" ]; then
+          echo "Copie des fichiers depuis client/dist/ (structure alternative)"
+          cp -r client/dist/* wwwroot/
         else
-          echo "Avertissement : Le répertoire client/dist/mydeskapp-client n'existe pas"
-          ls -la client/dist/
+          echo "ERREUR : Aucun fichier à copier dans client/dist/"
+          ls -la client/
+          exit 1
         fi
         
         # Copier les autres fichiers nécessaires
+        echo "Copie des fichiers du backend..."
         cp -r bin/ wwwroot/bin/
         cp -r routes/ wwwroot/routes/
         cp -r .env* wwwroot/ 2>/dev/null || true
         cp app.js wwwroot/
         cp package*.json wwwroot/
         
-        # Vérifier le contenu du répertoire de build
-        echo "Contenu du répertoire client/dist :"
-        ls -la client/dist/
-        
-        echo "Contenu du répertoire wwwroot après copie :"
+        # Afficher la structure finale
+        echo "=== Structure du répertoire wwwroot/ après copie ==="
         ls -la wwwroot/
+        
+        # Vérifier que index.html existe
+        if [ ! -f "wwwroot/index.html" ]; then
+          echo "ERREUR : index.html n'a pas été trouvé dans wwwroot/"
+          echo "Contenu de wwwroot/ :"
+          ls -la wwwroot/
+          exit 1
+        fi
 
     - name: Upload artifact for deployment
       uses: actions/upload-artifact@v4
