@@ -59,13 +59,30 @@ jobs:
 
     - name: Prepare deployment package
       run: |
+        # Créer le répertoire wwwroot s'il n'existe pas
         mkdir -p wwwroot
-        cp -r client/dist/mydeskapp-client/* wwwroot/
+        
+        # Copier les fichiers du client
+        if [ -d "client/dist/mydeskapp-client" ]; then
+          cp -r client/dist/mydeskapp-client/* wwwroot/
+        else
+          echo "Avertissement : Le répertoire client/dist/mydeskapp-client n'existe pas"
+          ls -la client/dist/
+        fi
+        
+        # Copier les autres fichiers nécessaires
         cp -r bin/ wwwroot/bin/
         cp -r routes/ wwwroot/routes/
         cp -r .env* wwwroot/ 2>/dev/null || true
         cp app.js wwwroot/
         cp package*.json wwwroot/
+        
+        # Vérifier le contenu du répertoire de build
+        echo "Contenu du répertoire client/dist :"
+        ls -la client/dist/
+        
+        echo "Contenu du répertoire wwwroot après copie :"
+        ls -la wwwroot/
 
     - name: Upload artifact for deployment
       uses: actions/upload-artifact@v4
