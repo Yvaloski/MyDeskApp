@@ -30,12 +30,16 @@ jobs:
     - name: Install Angular CLI
       run: npm install -g @angular/cli@latest
 
-    - name: Install and build client
+    - name: Install client dependencies
       working-directory: ./client
       run: |
         npm ci --legacy-peer-deps
-        npm install @angular-devkit/build-angular --legacy-peer-deps
-        npm run build -- --configuration production --output-hashing=all
+        npx ng version
+        
+    - name: Build Angular app
+      working-directory: ./client
+      run: |
+        npx ng build --configuration production --output-hashing=all
 
     - name: Prepare deployment package
       run: |
