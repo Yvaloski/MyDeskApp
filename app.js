@@ -78,9 +78,17 @@ async function initializeApp() {
       standardHeaders: true, // Retourne les en-têtes de limite de taux
       legacyHeaders: false, // Désactive les en-têtes `X-RateLimit-*`
       keyGenerator: (req) => {
-        // Utiliser l'adresse IP du client comme clé pour le rate limiting
-        return req.ip || req.connection.remoteAddress;
-      }
+        // Utiliser x-forwarded-for si disponible (derrière un proxy comme Azure)
+        const forwarded = req.headers['x-forwarded-for'];
+        const ip = forwarded ? forwarded.split(/, /)[0] : req.connection.remoteAddress;
+        return ip.replace(/^.*:/, ''); // Extraire l'IPv4 si c'est une adresse IPv6 mappée
+    },
+    handler: (req, res) => {
+      res.status(429).json({
+        status: 'error',
+        message: 'Trop de requêtes depuis cette adresse IP. Veuillez réessayer dans une heure!'
+      });
+    }
     });
     app.use('/api', limiter);
     
