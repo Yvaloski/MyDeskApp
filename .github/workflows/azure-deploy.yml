@@ -66,16 +66,12 @@ jobs:
         # Créer le répertoire wwwroot
         mkdir -p wwwroot
         
-        # Copier les fichiers du client (en vérifiant d'abord le chemin exact)
+        # Copier les fichiers du client
         if [ -d "client/dist/mydeskapp-client" ]; then
-          echo "Copie des fichiers depuis client/dist/mydeskapp-client/"
-          cp -r client/dist/mydeskapp-client/* wwwroot/
-        elif [ -d "client/dist" ]; then
-          echo "Copie des fichiers depuis client/dist/ (structure alternative)"
-          cp -r client/dist/* wwwroot/
+          echo "Copie des fichiers depuis client/dist/mydeskapp-client/ vers wwwroot/"
+          cp -r client/dist/mydeskapp-client/. wwwroot/
         else
-          echo "ERREUR : Aucun fichier à copier dans client/dist/"
-          ls -la client/
+          echo "ERREUR : client/dist/mydeskapp-client/ n'existe pas"
           exit 1
         fi
         
@@ -97,6 +93,8 @@ jobs:
           echo "Contenu de wwwroot/ :"
           ls -la wwwroot/
           exit 1
+        else
+          echo "✅ Fichier index.html trouvé avec succès dans wwwroot/"
         fi
 
     - name: Upload artifact for deployment
