@@ -38,12 +38,21 @@ jobs:
         # Nettoyer le cache npm
         npm cache clean --force
         
-        # Installer les dépendances avec --legacy-peer-deps pour éviter les conflits
-        npm ci --legacy-peer-deps
+        # Mettre à jour les dépendances Angular pour la version 19.x
+        npm install @angular/animations@^19.0.0 \
+                   @angular/common@^19.0.0 \
+                   @angular/compiler@^19.0.0 \
+                   @angular/core@^19.0.0 \
+                   @angular/forms@^19.0.0 \
+                   @angular/platform-browser@^19.0.0 \
+                   @angular/platform-browser-dynamic@^19.0.0 \
+                   @angular/router@^19.0.0 \
+                   @angular/compiler-cli@^19.0.0 \
+                   @angular-devkit/build-angular@^19.0.0 \
+                   typescript@~5.3.0 --save-dev
         
-        # Installer explicitement les dépendances nécessaires
-        npm install @angular-devkit/build-angular@latest --save-dev
-        npm install @angular/cli@latest --save-dev
+        # Installer les dépendances
+        npm ci --legacy-peer-deps
         
         # Lancer le build
         npx ng build --configuration production --output-hashing=all
