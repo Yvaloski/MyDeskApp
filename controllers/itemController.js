@@ -151,7 +151,7 @@ exports.renameItem = catchAsync(async (req, res, next) => {
 });
 
 // Mettre à jour la position d'un élément
-exports.updateItemPosition = catchAsync(async (req, res) => {
+exports.updateItemPosition = catchAsync(async (req, res, next) => {
   console.log('=== DEBUT updateItemPosition ===');
   console.log('Headers de la requête:', JSON.stringify(req.headers, null, 2));
   console.log('Paramètres de la requête:', { 
@@ -165,7 +165,6 @@ exports.updateItemPosition = catchAsync(async (req, res) => {
   const { x, y } = req.body;
   
   if (x === undefined || y === undefined) {
-    console.error('Erreur: Les coordonnées x et y sont requises');
     return next(new AppError('Les coordonnées x et y sont requises', 400));
   }
   
@@ -176,7 +175,6 @@ exports.updateItemPosition = catchAsync(async (req, res) => {
     const existingItem = await Item.findById(id);
     
     if (!existingItem) {
-      console.error(`[${new Date().toISOString()}] Erreur: Élément non trouvé avec l'ID ${id}`);
       return next(new AppError('Élément non trouvé', 404));
     }
     

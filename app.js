@@ -17,7 +17,7 @@ async function initializeApp() {
   try {
     // Initialiser la connexion à la base de données
     await initDatabase();
-    console.log('✅ Base de données initialisée avec succès');
+    process.env.NODE_ENV !== 'production' && console.log('✅ Base de données initialisée avec succès');
     
     const app = express();
     
@@ -28,9 +28,10 @@ async function initializeApp() {
       try {
         // Vérifier que la base de données est accessible
         await database.read();
+        process.env.NODE_ENV !== 'production' && console.log(`[${new Date().toISOString()}] Connexion à la base de données établie avec succès`);
         next();
       } catch (error) {
-        console.error('Erreur de connexion à la base de données:', error);
+        process.env.NODE_ENV !== 'production' && console.error(`[${new Date().toISOString()}] Erreur de connexion à la base de données:`, error);
         res.status(500).json({
           status: 'error',
           message: 'Erreur de connexion à la base de données'

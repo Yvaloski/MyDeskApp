@@ -2,12 +2,12 @@ const sql = require('mssql/msnodesqlv8');
 
 // Configuration de la connexion ODBC avec Active Directory Password
 const config = {
-    connectionString: `Driver={ODBC Driver 18 for SQL Server};` +
-                     `Server=${process.env.DB_SERVER || 'tcp:mydeskserver.database.windows.net,1433'};` +
-                     `Database=${process.env.DB_NAME || 'myDesk-ddb'};` +
-                     `Uid=${process.env.DB_USER};` +
-                     `Pwd=${process.env.DB_PASSWORD};` +
-                     'Encrypt=yes;' +
+  connectionString: 'Driver={ODBC Driver 18 for SQL Server};' +
+    `Server=${process.env.DB_SERVER || 'tcp:mydeskserver.database.windows.net,1433'};` +
+    `Database=${process.env.DB_NAME || 'myDesk-ddb'};` +
+    `Uid=${process.env.DB_USER};` +
+    `Pwd=${process.env.DB_PASSWORD};` +
+    'Encrypt=yes;' +
                      'TrustServerCertificate=no;' +
                      'Connection Timeout=30;' +
                      'Authentication=ActiveDirectoryPassword',
