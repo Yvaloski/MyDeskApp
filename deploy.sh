@@ -11,19 +11,32 @@ npm install --production
 
 # Build the frontend if it exists
 if [ -d "client" ]; then
-    echo "🔨 Building frontend..."
+    echo "🔨 Setting up Angular CLI and building frontend..."
     cd client
+    
+    # Install Angular CLI globally
+    echo "📦 Installing Angular CLI..."
+    npm install -g @angular/cli@latest
+    
+    # Install dependencies
+    echo "📦 Installing frontend dependencies..."
     npm install
-    npm run build
+    
+    # Build Angular app
+    echo "🔨 Building Angular application..."
+    npm run build -- --configuration production --output-hashing=all
+    
     cd ..
     
-    # Create the target directory if it doesn't exist
+    # Ensure the target directory exists
     mkdir -p client/dist/mydeskapp-client
     
-    # Move the built files to the expected location
+    # Move built files to the expected location
     if [ -d "client/dist/mydeskapp-client" ]; then
         echo "📂 Moving frontend files..."
+        # Copy all files from the Angular dist directory
         cp -r client/dist/mydeskapp-client/* client/dist/
+        # Remove the now empty directory
         rm -rf client/dist/mydeskapp-client
     fi
 fi
@@ -32,4 +45,4 @@ echo "✅ Build completed successfully!"
 
 # Start the application
 echo "🚀 Starting application..."
-npm start
+exec npm start
