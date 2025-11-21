@@ -49,31 +49,30 @@ async function initializeApp() {
           'http://localhost:5500', 
           'http://127.0.0.1:5500',
           'https://mydeskapp-gdfzegdabhhdhxd5.azurewebsites.net',
-          'https://mydeskapp-gdfzegdabhhdhxd5.scm.azurewebsites.net'
+          'https://mydeskapp-gdfzegdabhhdhxd5.scm.azurewebsites.net',
+          'https://mydeskapp-gdfzegdabhhdhxd5.norwayeast-01.azurewebsites.net',
+          'https://mydeskapp-gdfzegdabhhdhxd5.scm.norwayeast-01.azurewebsites.net'
         ];
+
+    console.log('Origines CORS autorisées :', allowedOrigins);
 
     const corsOptions = {
       origin: (origin, callback) => {
         // Autoriser toutes les origines en développement
         if (process.env.NODE_ENV === 'development') {
+          console.log('Mode développement - Toutes les origines sont autorisées');
           return callback(null, true);
         }
         
         // En production, vérifier les origines autorisées
         if (!origin || allowedOrigins.includes(origin)) {
+          console.log(`Origine autorisée : ${origin}`);
           return callback(null, true);
         }
         
-        const msg = `L'origine ${origin} n'est pas autorisée par CORS`;
-        console.error('Erreur CORS:', msg);
-        callback(new Error(msg));
-        if (!origin) return callback(null, true);
-        
-        if (allowedOrigins.indexOf(origin) === -1) {
-          const msg = `L'origine ${origin} n'est pas autorisée par CORS`;
-          return callback(new Error(msg), false);
-        }
-        return callback(null, true);
+        const errorMsg = `L'origine ${origin} n'est pas autorisée par CORS`;
+        console.error('Erreur CORS:', errorMsg);
+        return callback(new Error(errorMsg), false);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
