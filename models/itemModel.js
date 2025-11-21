@@ -1,19 +1,19 @@
 const BaseModel = require('./baseModel');
-// SQL dialect configuration for linting
-// noinspection JSUnresolvedReference
-// noinspection SqlResolve
-// noinspection SqlNoDataSourceInspection
 
 class ItemModel extends BaseModel {
     constructor() {
         super('items', 'type'); // 'items' est le nom du conteneur, 'type' est la clé de partition
     }
 
+    // ==============================================
+    // MÉTHODES DE CRÉATION
+    // ==============================================
+
     // Créer un dossier
     async createFolder(name, parentId = null) {
         const folder = {
             id: `folder-${Date.now()}`,
-            type: 'folder', // Type pour la clé de partition
+            type: 'folder',
             name,
             parentId,
             path: parentId ? await this.getFolderPath(parentId) + '/' + name : '/' + name,
@@ -22,9 +22,8 @@ class ItemModel extends BaseModel {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
-        console.log('Création du dossier avec les données:', folder);
+        
         const createdFolder = await this.create(folder);
-        console.log('Dossier créé avec succès:', createdFolder);
         return createdFolder;
     }
 
@@ -32,7 +31,7 @@ class ItemModel extends BaseModel {
     async createFile(name, content, parentId = null, mimeType = 'text/plain') {
         const file = {
             id: `file-${Date.now()}`,
-            type: 'file', // Type pour la clé de partition
+            type: 'file',
             name,
             parentId,
             path: parentId ? await this.getFolderPath(parentId) + '/' + name : '/' + name,
@@ -44,11 +43,14 @@ class ItemModel extends BaseModel {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
         };
-        console.log('Création du fichier avec les données:', file);
+        
         const createdFile = await this.create(file);
-        console.log('Fichier créé avec succès:', createdFile);
         return createdFile;
     }
+
+    // ==============================================
+    // MÉTHODES DE RÉCUPÉRATION
+    // ==============================================
 
     // Obtenir le chemin complet d'un dossier
     async getFolderPath(folderId) {
@@ -61,11 +63,9 @@ class ItemModel extends BaseModel {
     // Lister le contenu d'un dossier
     async listDirectory(parentId = null) {
         try {
-            // Construire la requête en fonction de si on est à la racine ou non
             let querySpec;
 
             if (parentId === null) {
-                // Si parentId est null, on récupère les éléments à la racine
                 querySpec = {
                     query: 'SELECT * FROM c WHERE c.parentId = null OR c.parentId = @nullValue',
                     parameters: [
@@ -73,7 +73,6 @@ class ItemModel extends BaseModel {
                     ]
                 };
             } else {
-                // Sinon, on récupère les enfants du dossier spécifié
                 querySpec = {
                     query: 'SELECT * FROM c WHERE c.parentId = @parentId',
                     parameters: [
@@ -85,31 +84,61 @@ class ItemModel extends BaseModel {
             const {resources: items} = await this.container.items.query(querySpec).fetchAll();
             return items;
         } catch (error) {
-            process.env.NODE_ENV !== 'production' && console.error('Erreur lors de la récupération du contenu du dossier:', error);
+            console.error('Erreur lors de la récupération du contenu du dossier:', error);
             throw error;
         }
     }
 
-    // Supprimer un élément par son ID
-    async deleteById(id) {
-        try {
-            // Déterminer la clé de partition en fonction du type d'élément
-            let partitionKey;
-            if (id.startsWith('folder-')) {
-                partitionKey = 'folder';
-            } else if (id.startsWith('file-')) {
-                partitionKey = 'file';
-            } else {
-                partitionKey = this.partitionKey;
-            }
+    // Trouver tous les éléments par parentId
+    async findByParentId(parentId) {
+        const query = {
+            query: 'SELECT * FROM c WHERE c.parentId = @parentId',
+            parameters: [
+                { name: '@parentId', value: parentId }
+            ]
+        };
+        
+        const { resources } = await this.container.items.query(query).fetchAll();
+        return resources;
+    }
 
-            console.log(`Tentative de suppression de l'élément ${id} avec la clé de partition '${partitionKey}'`);
+    // ==============================================
+    // MÉTHODES DE MISE À JOUR
+    // ==============================================
+
+    // Mettre à jour un élément
+    async updateItem(id, updates) {
+        try {
+            const timestamp = new Date().toISOString();
             
-            const { resource: result } = await this.container.item(id, partitionKey).delete();
-            console.log('Élément supprimé avec succès:', id);
+            // Récupérer l'élément existant
+            const existingItem = await this.findById(id);
+            if (!existingItem) {
+                throw new Error('Élément non trouvé');
+            }
+            
+            // Créer une copie de l'élément existant
+            const updatedItem = { ...existingItem };
+            
+            // Mettre à jour uniquement les champs fournis
+            Object.keys(updates).forEach(key => {
+                if (key in updatedItem && key !== 'id' && !key.startsWith('_')) {
+                    updatedItem[key] = updates[key];
+                }
+            });
+            
+            // Mettre à jour la date de modification
+            updatedItem.updatedAt = new Date().toISOString();
+            
+            // Appeler la méthode update du parent
+            const result = await this.update(id, updatedItem);
+            if (!result) {
+                throw new Error('Échec de la mise à jour de l\'élément');
+            }
+            
             return result;
         } catch (error) {
-            console.error('Erreur lors de la suppression de l\'élément:', error);
+            console.error('Erreur lors de la mise à jour de l\'élément:', error);
             throw error;
         }
     }
@@ -125,9 +154,29 @@ class ItemModel extends BaseModel {
             : '/' + newName;
         item.updatedAt = new Date().toISOString();
 
-        return this.update(id, item);
+        return this.updateItem(id, item);
     }
 
+    // ==============================================
+    // MÉTHODES DE SUPPRESSION
+    // ==============================================
+
+    // Supprimer un élément par son ID
+    async deleteById(id) {
+        try {
+            // Déterminer la clé de partition en fonction du type d'élément
+            let partitionKey = id.startsWith('folder-') ? 'folder' : 
+                             (id.startsWith('file-') ? 'file' : this.partitionKey);
+            
+            const { resource: result } = await this.container.item(id, partitionKey).delete();
+            return result;
+        } catch (error) {
+            console.error('Erreur lors de la suppression de l\'élément:', error);
+            throw error;
+        }
+    }
+
+    // Supprimer un élément et ses enfants récursivement
     async deleteItem(id) {
         // D'abord, on récupère tous les enfants
         const querySpec = {
@@ -145,87 +194,99 @@ class ItemModel extends BaseModel {
         }
         
         // Puis on supprime l'élément lui-même
-        return await this.delete(id);
+        return await this.deleteById(id);
     }
 
-    // Mettre à jour un élément
-    async updateItem(id, updates) {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] [ItemModel.updateItem] Début de la mise à jour de l'élément ${id}`);
-        console.log(`[${timestamp}] Mises à jour reçues:`, JSON.stringify(updates, null, 2));
-        
-        // Récupérer l'élément existant
-        console.log(`[${timestamp}] Récupération de l'élément existant...`);
-        const existingItem = await this.findById(id);
-        
-        if (!existingItem) {
-            const errorMsg = `[${timestamp}] Erreur: Élément non trouvé avec l'ID ${id}`;
-            console.error(errorMsg);
-            throw new Error('Élément non trouvé');
-        }
-        
-        console.log(`[${timestamp}] Élément existant:`, JSON.stringify({
-            id: existingItem.id,
-            name: existingItem.name,
-            type: existingItem.type,
-            x: existingItem.x,
-            y: existingItem.y,
-            updatedAt: existingItem.updatedAt
-        }, null, 2));
-        
-        console.log('Élément existant avant mise à jour:', JSON.stringify(existingItem, null, 2));
-        
-        // Créer une copie de l'élément existant
-        const updatedItem = { ...existingItem };
-        
-        // Mettre à jour uniquement les champs fournis
-        const updatedFields = [];
-        Object.keys(updates).forEach(key => {
-            if (key in updatedItem && key !== 'id' && !key.startsWith('_')) {
-                const oldValue = updatedItem[key];
-                const newValue = updates[key];
+    // ==============================================
+    // MÉTHODES DE DÉPLACEMENT
+    // ==============================================
+
+    // Déplacer un élément vers un nouveau dossier parent
+    async moveItem(itemId, targetParentId) {
+        try {
+            // Récupérer l'élément à déplacer
+            const item = await this.getById(itemId);
+            if (!item) {
+                throw new Error('Élément non trouvé');
+            }
+
+            // Si le parent ne change pas, retourner l'élément tel quel
+            if (String(item.parentId) === String(targetParentId)) {
+                return item;
+            }
+
+            // Vérifier que la cible est un dossier
+            let target = null;
+            if (targetParentId) {
+                target = await this.getById(targetParentId);
+                if (!target || target.type !== 'folder') {
+                    throw new Error('La cible doit être un dossier valide');
+                }
                 
-                // Ne mettre à jour que si la valeur a changé
-                if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
-                    updatedItem[key] = newValue;
-                    updatedFields.push({
-                        field: key,
-                        oldValue: oldValue,
-                        newValue: newValue
-                    });
+                // Vérifier que la cible n'est pas un descendant de l'élément à déplacer
+                if (item.type === 'folder') {
+                    const isDescendant = await this.isDescendant(item, target);
+                    if (isDescendant) {
+                        throw new Error('Impossible de déplacer un dossier dans un de ses propres sous-dossiers');
+                    }
                 }
             }
-        });
-        
-        // Mettre à jour la date de modification
-        const oldUpdatedAt = updatedItem.updatedAt;
-        updatedItem.updatedAt = new Date().toISOString();
-        
-        console.log(`[${timestamp}] Champs mis à jour:`, JSON.stringify(updatedFields, null, 2));
-        console.log(`[${timestamp}] updatedAt: ${oldUpdatedAt} -> ${updatedItem.updatedAt}`);
-        
-        // Appeler la méthode update du parent
-        console.log(`[${timestamp}] Appel de this.update avec l'ID: ${id} et les mises à jour:`, 
-            JSON.stringify(updatedItem, (key, value) => 
-                key === 'content' ? '[CONTENT]' : value, 2));
-        
-        const result = await this.update(id, updatedItem);
-        
-        if (!result) {
-            console.error(`[${timestamp}] Erreur: Aucun résultat retourné par this.update`);
-            throw new Error('Échec de la mise à jour de l\'élément');
+
+            // Vérifier qu'on ne déplace pas un dossier dans lui-même
+            if (target && item.type === 'folder' && item.id === target.id) {
+                throw new Error('Impossible de déplacer un dossier dans lui-même');
+            }
+
+            // Mettre à jour le parent et le chemin
+            const oldPath = item.path;
+            item.parentId = targetParentId || null;
+            
+            // Construire le nouveau chemin
+            if (target) {
+                item.path = (target.path.endsWith('/') ? target.path : target.path + '/') + item.name;
+            } else {
+                item.path = '/' + item.name;
+            }
+            
+            // Mettre à jour la date de modification
+            item.updatedAt = new Date().toISOString();
+
+            // Sauvegarder les modifications
+            const updatedItem = await this.updateItem(item.id, item);
+            
+            // Si c'est un dossier, mettre à jour les chemins des éléments enfants
+            if (item.type === 'folder' && oldPath !== item.path) {
+                await this.updateChildrenPaths(item.id, item.path);
+            }
+
+            return updatedItem;
+        } catch (error) {
+            console.error('Erreur lors du déplacement de l\'élément:', error);
+            throw error;
         }
+    }
+    
+    // Vérifier si un élément est un descendant d'un autre
+    async isDescendant(parent, child) {
+        if (!child.parentId) return false;
+        if (child.parentId === parent.id) return true;
         
-        console.log(`[${timestamp}] Mise à jour réussie. Résultat:`, JSON.stringify({
-            id: result.id,
-            name: result.name,
-            type: result.type,
-            x: result.x,
-            y: result.y,
-            updatedAt: result.updatedAt
-        }, null, 2));
-        
-        return result;
+        const parentItem = await this.getById(child.parentId);
+        return parentItem ? this.isDescendant(parent, parentItem) : false;
+    }
+
+    // Mettre à jour les chemins des éléments enfants
+    async updateChildrenPaths(parentId, parentPath) {
+        const children = await this.findByParentId(parentId);
+        for (const child of children) {
+            child.path = parentPath + '/' + child.name;
+            await this.updateItem(child.id, child);
+            
+            // Mettre à jour récursivement les sous-dossiers
+            if (child.type === 'folder') {
+                await this.updateChildrenPaths(child.id, child.path);
+            }
+        }
     }
 }
 

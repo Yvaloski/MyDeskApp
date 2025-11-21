@@ -5,33 +5,42 @@ import { Item } from '../../models/item.model';
 @Component({
   selector: 'app-folder',
   standalone: true,
-    imports: [CommonModule],
+  imports: [CommonModule],
   template: `
-      <div class="folder"
-           [style.left.px]="folder.x"
-           [style.top.px]="folder.y"
-           (mousedown)="onMouseDown($event)"
-           (contextmenu)="onContextMenu($event)"
-           (dblclick)="onDoubleClick($event)">
-          <div class="folder-icon">
-              <img src="/assets/images/Folder.ico" alt="Dossier" width="64" height="64" draggable="false">
-          </div>
-          <div class="folder-name">{{ folder.name }}</div>
+    <div class="folder drop-target"
+         [style.left.px]="folder.x"
+         [style.top.px]="folder.y"
+         (mousedown)="onMouseDown($event)"
+         (contextmenu)="onContextMenu($event)"
+         (dblclick)="onDoubleClick($event)"
+         (dragover)="onDragOver($event)"
+         (dragenter)="onDragEnter($event)"
+         (dragleave)="onDragLeave($event)"
+         (drop)="onDrop($event)">
+      <div class="folder-icon">
+        <img src="/assets/images/Folder.ico" alt="Dossier" width="64" height="64" draggable="false">
       </div>
+      <div class="folder-name">{{ folder.name }}</div>
+    </div>
   `,
-  styles: []
+  styleUrls: ['./folder.component.css']
 })
 export class FolderComponent {
   @Input() folder!: Item;
   @Output() moved = new EventEmitter<{ item: Item, x: number, y: number }>();
   @Output() contextmenu = new EventEmitter<MouseEvent>();
   @Output() dblclick = new EventEmitter<void>();
+  @Output() dropItem = new EventEmitter<DragEvent>();
+  @Output() dragOver = new EventEmitter<DragEvent>();
+  @Output() dragEnter = new EventEmitter<DragEvent>();
+  @Output() dragLeave = new EventEmitter<DragEvent>();
 
   private isDragging = false;
   private startX = 0;
   private startY = 0;
   private startLeft = 0;
   private startTop = 0;
+  private isDragOver = false;
 
   constructor() {}
 
@@ -45,6 +54,58 @@ export class FolderComponent {
     event.preventDefault();
     event.stopPropagation();
     this.dblclick.emit();
+  }
+
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!this.isDragOver) {
+      this.isDragOver = true;
+      const target = event.currentTarget as HTMLElement;
+      target.classList.add('drag-over');
+    }
+    
+    this.dragOver.emit(event);
+  }
+
+  onDragEnter(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!this.isDragOver) {
+      this.isDragOver = true;
+      const target = event.currentTarget as HTMLElement;
+      target.classList.add('drag-over');
+    }
+    
+    this.dragEnter.emit(event);
+  }
+
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (this.isDragOver) {
+      this.isDragOver = false;
+      const target = event.currentTarget as HTMLElement;
+      target.classList.remove('drag-over');
+    }
+    
+    this.dragLeave.emit(event);
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (this.isDragOver) {
+      this.isDragOver = false;
+      const target = event.currentTarget as HTMLElement;
+      target.classList.remove('drag-over');
+    }
+    
+    this.dropItem.emit(event);
   }
 
   onMouseDown(event: MouseEvent): void {

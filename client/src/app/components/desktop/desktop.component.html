@@ -1,23 +1,46 @@
 <div class="desktop" 
      (contextmenu)="onContextMenu($event)"
      (drop)="onDrop($event)"
-     (dragover)="onDragOver($event)">
+     (dragover)="onDragOver($event)"
+     (dragleave)="onDragLeave($event)">
   
   @for (item of items; track item.id) {
     @if (item.type === 'folder') {
-      <app-folder 
-        [folder]="item"
-        (moved)="onItemMoved($event)"
-        (contextmenu)="onContextMenu($event, item)"
-        (dblclick)="openItem(item)">
-      </app-folder>
+      <div 
+        class="draggable-item"
+        draggable="true"
+        [attr.data-item-id]="item.id"
+        (dragstart)="onDragStart($event, item)"
+        (dragend)="onDragEnd($event)"
+        [style.left.px]="item.x || 0"
+        [style.top.px]="item.y || 0">
+        <app-folder 
+          [folder]="item"
+          (moved)="onItemMoved($event)"
+          (contextmenu)="onContextMenu($event, item)"
+          (dblclick)="openItem(item)"
+          (dropItem)="onDrop($event)"
+          (dragOver)="onDragOver($event)"
+          (dragEnter)="onDragOver($event)"
+          (dragLeave)="onDragLeave($event)">
+        </app-folder>
+      </div>
     } @else {
-      <app-file 
-        [file]="item"
-        (moved)="onItemMoved($event)"
-        (contextmenu)="onContextMenu($event, item)"
-        (dblclick)="openItem(item)">
-      </app-file>
+      <div 
+        class="draggable-item"
+        draggable="true"
+        [attr.data-item-id]="item.id"
+        (dragstart)="onDragStart($event, item)"
+        (dragend)="onDragEnd($event)"
+        [style.left.px]="item.x || 0"
+        [style.top.px]="item.y || 0">
+        <app-file 
+          [file]="item"
+          (moved)="onItemMoved($event)"
+          (contextmenu)="onContextMenu($event, item)"
+          (dblclick)="openItem(item)">
+        </app-file>
+      </div>
     }
   }
 </div>

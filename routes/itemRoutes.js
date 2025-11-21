@@ -51,4 +51,7 @@ router.patch('/:id/rename', itemController.renameItem);
 // Supprimer un élément (fichier ou dossier)
 router.delete('/:id', itemController.deleteItem);
 
+// Déplacer un élément vers un autre dossier
+router.patch('/:id/move', itemController.moveItem);
+
 module.exports = router;

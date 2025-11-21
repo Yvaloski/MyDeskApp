@@ -1,23 +1,30 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, map, catchError, of } from 'rxjs';
+import {HttpClient, HttpHeaders} from '@angular/common/http';
+import {BehaviorSubject, Observable, tap, map, catchError, of, throwError} from 'rxjs';
 import { Item, ApiResponse } from '../models/item.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class DesktopService {
-  private apiUrl = '/api/v1/items';
+  private apiUrl = '/api/v1/items'; // Forcer localhost en développement
+  // private apiUrl = '/api/v1/items'; // URL relative pour la production
   private itemsSubject = new BehaviorSubject<Item[]>([]);
   public items$ = this.itemsSubject.asObservable();
 
   constructor(private http: HttpClient) {
+    // Charger les éléments initiaux
     this.loadItems();
+    
+    // Rafraîchir périodiquement (toutes les 5 secondes) pour détecter les changements
+    setInterval(() => this.loadItems(), 5000);
   }
 
   loadItems(): void {
+    console.log('Chargement des éléments...');
     this.getItemsInPath('/').subscribe({
       next: (items) => {
+        console.log(`${items.length} éléments chargés`);
         this.itemsSubject.next(items);
       },
       error: (err) => console.error('Erreur lors du chargement des items:', err)
@@ -56,6 +63,7 @@ export class DesktopService {
   }
 
   createFolder(name: string, parentId: string | null = null, x: number = 0, y: number = 0): Observable<Item> {
+    console.log(`Création du dossier: ${name}, parent: ${parentId}`);
     return this.http.post<ApiResponse<{ folder: Item }>>(`${this.apiUrl}/folders`, {
       name,
       parentId,
@@ -64,21 +72,21 @@ export class DesktopService {
       type: 'folder'
     }).pipe(
       tap(response => {
-        const currentItems = this.itemsSubject.value;
-        const folder = response.data.folder;
-        const existingIndex = currentItems.findIndex(item => item.id === folder.id);
-        if (existingIndex >= 0) {
-          currentItems[existingIndex] = folder;
-        } else {
-          currentItems.push(folder);
-        }
-        this.itemsSubject.next([...currentItems]);
+        console.log('Réponse de création de dossier:', response);
+        // Au lieu de mettre à jour manuellement, on recharge la liste complète
+        // pour s'assurer d'avoir les données les plus récentes
+        this.loadItems();
       }),
-      map(response => response.data.folder)
+      map(response => response.data.folder),
+      catchError(error => {
+        console.error('Erreur lors de la création du dossier:', error);
+        return throwError(() => error);
+      })
     );
   }
 
   createFile(name: string, parentId: string | null = null, x: number = 0, y: number = 0, content: string = '', mimeType: string = 'text/plain'): Observable<Item> {
+    console.log(`Création du fichier: ${name}, parent: ${parentId}`);
     return this.http.post<ApiResponse<{ file: Item }>>(`${this.apiUrl}/files/create`, {
       name,
       parentId,
@@ -90,17 +98,15 @@ export class DesktopService {
       size: content.length
     }).pipe(
       tap(response => {
-        const currentItems = this.itemsSubject.value;
-        const file = response.data.file;
-        const existingIndex = currentItems.findIndex(item => item.id === file.id);
-        if (existingIndex >= 0) {
-          currentItems[existingIndex] = file;
-        } else {
-          currentItems.push(file);
-        }
-        this.itemsSubject.next([...currentItems]);
+        console.log('Réponse de création de fichier:', response);
+        // Recharger la liste complète pour s'assurer d'avoir les données les plus récentes
+        this.loadItems();
       }),
-      map(response => response.data.file)
+      map(response => response.data.file),
+      catchError(error => {
+        console.error('Erreur lors de la création du fichier:', error);
+        return throwError(() => error);
+      })
     );
   }
 
@@ -138,22 +144,85 @@ export class DesktopService {
     );
   }
 
+  // Supprimer un élément
   deleteItem(itemId: string): Observable<void> {
-    return this.http.delete<any>(`${this.apiUrl}/${itemId}`).pipe(
-      tap(() => {
-        const currentItems = this.itemsSubject.value;
-        this.itemsSubject.next(currentItems.filter(item => item.id !== itemId));
-      }),
-      map(() => undefined)
-    );
+    // Ajouter un timestamp pour éviter le cache
+    const timestamp = new Date().getTime();
+    const deleteUrl = `${this.apiUrl}/${itemId}?_=${timestamp}`;
+    
+    return new Observable(subscriber => {
+      this.http.delete(deleteUrl, { 
+        withCredentials: true,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        observe: 'response'
+      }).subscribe({
+        next: (response) => {
+          if (response.status === 204 || response.status === 200) {
+            const currentItems = this.itemsSubject.value;
+            this.itemsSubject.next(currentItems.filter(item => item.id !== itemId));
+            subscriber.next();
+            subscriber.complete();
+          } else {
+            subscriber.error(new Error(`Erreur inattendue: ${response.status} ${response.statusText}`));
+          }
+        },
+        error: (error) => {
+          subscriber.error(error);
+        }
+      });
+    });
   }
 
-  moveItem(itemId: string, targetPath: string): Observable<Item> {
-    return this.http.patch<ApiResponse<{ item: Item }>>(`${this.apiUrl}/${itemId}/move`, { targetPath }).pipe(
-      tap(() => {
-        this.loadItems();
+  // Déplacer un élément vers un autre dossier
+  moveItem(itemId: string, targetParentId: string | null): Observable<Item> {
+    const url = `${this.apiUrl}/${itemId}/move`;
+    const body = { targetParentId };
+    
+    console.log(`Déplacement de l'élément ${itemId} vers le parent ${targetParentId || 'root'}`);
+    console.log('URL:', url);
+    console.log('Corps de la requête:', body);
+    
+    return this.http.patch<ApiResponse<{ item: Item }>>(url, body, {
+      withCredentials: true,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }).pipe(
+      tap(response => {
+        console.log('Réponse du serveur (moveItem):', response);
       }),
-      map(response => response.data.item)
+      map(response => {
+        if (!response) {
+          throw new Error('Réponse du serveur vide');
+        }
+        
+        if (!response.data || !response.data.item) {
+          console.error('Réponse du serveur invalide, données manquantes:', response);
+          throw new Error('Réponse du serveur invalide: données manquantes');
+        }
+        
+        // Mettre à jour la liste locale
+        const updatedItem = response.data.item;
+        const currentItems = this.itemsSubject.value;
+        console.log('Liste actuelle des items:', currentItems);
+        
+        const updatedItems = currentItems.map(item => 
+          item.id === updatedItem.id ? updatedItem : item
+        );
+        
+        console.log('Nouvelle liste des items après mise à jour:', updatedItems);
+        this.itemsSubject.next(updatedItems);
+        return updatedItem;
+      }),
+      catchError(error => {
+        console.error('Erreur lors du déplacement de l\'élément:', error);
+        return throwError(() => error);
+      })
     );
   }
 

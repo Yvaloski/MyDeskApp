@@ -23,9 +23,21 @@ async function initializeApp() {
     
     // 1) MIDDLEWARES GLOBAUX
     
-    // Middleware pour ajouter l'heure de la requête
+    // Middleware pour logger les requêtes
     app.use((req, res, next) => {
       req.requestTime = new Date().toISOString();
+      
+      // Logger les requêtes DELETE de manière plus détaillée
+      if (req.method === 'DELETE' || req.method === 'OPTIONS') {
+        console.log(`\n=== [${new Date().toISOString()}] ${req.method} ${req.originalUrl} ===`);
+        console.log('Headers:', JSON.stringify(req.headers, null, 2));
+        console.log('Params:', JSON.stringify(req.params, null, 2));
+        console.log('Query:', JSON.stringify(req.query, null, 2));
+        if (req.body && Object.keys(req.body).length > 0) {
+          console.log('Body:', JSON.stringify(req.body, null, 2));
+        }
+      }
+      
       next();
     });
     
@@ -45,7 +57,9 @@ async function initializeApp() {
       ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
       : [
           'http://localhost:3000', 
-          'http://127.0.0.1:3000', 
+          'http://127.0.0.1:3000',
+          'http://localhost:4200',
+          'http://127.0.0.1:4200',
           'http://localhost:5500', 
           'http://127.0.0.1:5500',
           'https://mydeskapp-gdfzegdabhhdhxd5.azurewebsites.net',
@@ -57,36 +71,67 @@ async function initializeApp() {
     console.log('Origines CORS autorisées :', allowedOrigins);
 
     const corsOptions = {
-      origin: (origin, callback) => {
+      origin: function (origin, callback) {
         // Autoriser toutes les origines en développement
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Mode développement - Toutes les origines sont autorisées');
+        if (process.env.NODE_ENV !== 'production' || !origin) {
+          console.log('Mode développement - Origine autorisée:', origin || 'localhost');
           return callback(null, true);
         }
-        
-        // En production, vérifier les origines autorisées
-        if (!origin || allowedOrigins.includes(origin)) {
-          console.log(`Origine autorisée : ${origin}`);
+
+        // Vérifier si l'origine est dans la liste des origines autorisées
+        if (allowedOrigins.indexOf(origin) !== -1) {
+          console.log('Origine autorisée:', origin);
           return callback(null, true);
         }
-        
-        const errorMsg = `L'origine ${origin} n'est pas autorisée par CORS`;
-        console.error('Erreur CORS:', errorMsg);
-        return callback(new Error(errorMsg), false);
+
+        console.error('Origine non autorisée par CORS:', origin);
+        callback(new Error('Not allowed by CORS'));
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-      exposedHeaders: ['Content-Range', 'X-Total-Count'],
-      optionsSuccessStatus: 200,
-      maxAge: 600 // Durée de mise en cache des pré-vérifications CORS en secondes
+      allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'Access-Control-Allow-Headers',
+        'Access-Control-Request-Method',
+        'Access-Control-Request-Headers'
+      ],
+      exposedHeaders: [
+        'Content-Range', 
+        'X-Total-Count',
+        'Access-Control-Allow-Origin',
+        'Access-Control-Allow-Credentials'
+      ],
+      optionsSuccessStatus: 204, // Certains navigateurs (Chrome) ont des problèmes avec 204
+      preflightContinue: false,
+      optionsSuccessStatus: 200 // Pour les navigateurs plus anciens
     };
     
     // Appliquer CORS
     app.use(cors(corsOptions));
     
-    // Gestion des requêtes OPTIONS (pré-vol)
+    // Gestion des requêtes OPTIONS (prévol CORS)
     app.options('*', cors(corsOptions));
+    
+    // Middleware pour gérer manuellement les requêtes OPTIONS si nécessaire
+    app.use((req, res, next) => {
+      if (req.method === 'OPTIONS') {
+        console.log('Traitement de la requête OPTIONS');
+        // Définir les en-têtes CORS
+        res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Max-Age', '86400'); // 24 heures
+        
+        // Répondre immédiatement avec 204 No Content pour les requêtes OPTIONS
+        return res.status(204).send();
+      }
+      next();
+    });
     
     // Limiter le nombre de requêtes depuis une même IP
     const limiter = rateLimit({

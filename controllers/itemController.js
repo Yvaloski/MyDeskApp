@@ -159,22 +159,102 @@ exports.renameItem = catchAsync(async (req, res, next) => {
 exports.deleteItem = catchAsync(async (req, res, next) => {
   const { id } = req.params;
   
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`Tentative de suppression de l'élément avec l'ID: ${id}`);
+  try {
+    // Vérifier d'abord si l'élément existe
+    const item = await Item.getById(id);
+    
+    if (!item) {
+      return next(new AppError('Aucun élément trouvé avec cet ID', 404));
+    }
+    
+    // Supprimer l'élément
+    
+    try {
+      await Item.deleteById(id, item.type);
+      
+      // Envoyer une réponse 200 avec un corps JSON
+      return res.status(200).json({
+        status: 'success',
+        data: null,
+        message: 'Élément supprimé avec succès'
+      });
+      
+    } catch (deleteError) {
+      // Si l'erreur est une 404, essayer sans spécifier la clé de partition
+      if (deleteError.code === 404) {
+        try {
+          await Item.deleteById(id);
+          return res.status(200).json({
+            status: 'success',
+            data: null,
+            message: 'Élément supprimé avec succès (seconde tentative)'
+          });
+        } catch (retryError) {
+          throw retryError;
+        }
+      }
+      
+      throw deleteError;
+    }
+    
+  } catch (error) {
+    // Si c'est une erreur 404, renvoyer une réponse 204 car la ressource n'existe plus
+    if (error.code === 404) {
+      return res.status(204).send();
+    }
+    
+    return next(new AppError(
+      `Erreur lors de la suppression de l'élément: ${error.message}`, 
+      error.statusCode || 500
+    ));
   }
-  
-  const item = await Item.getById(id);
-  
-  if (!item) {
-    return next(new AppError('Aucun élément trouvé avec cet ID', 404));
+});
+
+// Déplacer un élément vers un autre dossier
+exports.moveItem = catchAsync(async (req, res, next) => {
+  const { id } = req.params;
+  const { targetParentId } = req.body;
+
+  if (targetParentId === undefined) {
+    return next(new AppError('L\'ID du dossier cible est requis', 400));
   }
-  
-  await Item.deleteById(id);
-  
-  res.status(204).json({
-    status: 'success',
-    data: null
-  });
+
+  try {
+    // Vérifier si l'élément existe
+    const item = await Item.getById(id);
+    if (!item) {
+      return next(new AppError('Élément non trouvé', 404));
+    }
+
+    // Vérifier si le dossier cible existe (sauf si c'est la racine)
+    if (targetParentId) {
+      const target = await Item.getById(targetParentId);
+      if (!target || target.type !== 'folder') {
+        return next(new AppError('Le dossier cible n\'existe pas ou n\'est pas un dossier valide', 400));
+      }
+
+      // Vérifier qu'on ne déplace pas un dossier dans lui-même ou un de ses sous-dossiers
+      if (item.type === 'folder' && item.id === targetParentId) {
+        return next(new AppError('Impossible de déplacer un dossier dans lui-même', 400));
+      }
+    }
+
+    // Effectuer le déplacement
+    const updatedItem = await Item.moveItem(id, targetParentId || null);
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        item: updatedItem
+      }
+    });
+
+  } catch (error) {
+    if (error.message.includes('Impossible de déplacer un dossier dans lui-même')) {
+      return next(new AppError(error.message, 400));
+    }
+    next(error);
+  }
 });
 
 // Mettre à jour la position d'un élément
@@ -276,21 +356,4 @@ exports.updateItemPosition = catchAsync(async (req, res, next) => {
   }
 });
 
-// Supprimer un élément
-exports.deleteItem = catchAsync(async (req, res, next) => {
-  const { id } = req.params;
-  
-  const result = await Item.deleteItem(id);
-  
-  if (!result.success) {
-    return next(new AppError(result.error || 'Élément non trouvé', 404));
-  }
-  
-  res.status(200).json({
-    status: 'success',
-    data: {
-      item: result.item
-    }
-  });
-});
 
