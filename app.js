@@ -43,11 +43,30 @@ async function initializeApp() {
     // Configuration CORS
     const allowedOrigins = process.env.ALLOWED_ORIGINS 
       ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-      : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500', 'http://127.0.0.1:5500'];
+      : [
+          'http://localhost:3000', 
+          'http://127.0.0.1:3000', 
+          'http://localhost:5500', 
+          'http://127.0.0.1:5500',
+          'https://mydeskapp-gdfzegdabhhdhxd5.azurewebsites.net',
+          'https://mydeskapp-gdfzegdabhhdhxd5.scm.azurewebsites.net'
+        ];
 
     const corsOptions = {
       origin: (origin, callback) => {
-        // Autoriser les requêtes sans origine (comme les applications mobiles ou postman)
+        // Autoriser toutes les origines en développement
+        if (process.env.NODE_ENV === 'development') {
+          return callback(null, true);
+        }
+        
+        // En production, vérifier les origines autorisées
+        if (!origin || allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        
+        const msg = `L'origine ${origin} n'est pas autorisée par CORS`;
+        console.error('Erreur CORS:', msg);
+        callback(new Error(msg));
         if (!origin) return callback(null, true);
         
         if (allowedOrigins.indexOf(origin) === -1) {
@@ -125,6 +144,7 @@ async function initializeApp() {
     });
     
     // 1) ROUTES API
+    // 2) CONFIGURATION DES ROUTES API
     const indexRouter = require('./routes/index');
     const usersRouter = require('./routes/users');
     const uploadRouter = require('./routes/upload');
@@ -134,26 +154,28 @@ async function initializeApp() {
     app.use('/api/users', usersRouter);
     app.use('/api/upload', uploadRouter);
     
-    // 2) SERVIR LES FICHIERS STATIQUES
-    // D'abord les fichiers uploadés
-    app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'), {
-      setHeaders: (res, path) => {
-        if (path.endsWith('.css')) {
-          res.setHeader('Content-Type', 'text/css');
-        } else if (path.endsWith('.js')) {
-          res.setHeader('Content-Type', 'application/javascript');
-        }
-      }
-    }));
+    // 3) CONFIGURATION DES FICHIERS STATIQUES
+    const publicPath = process.env.NODE_ENV === 'production' 
+      ? path.join(__dirname) 
+      : path.join(__dirname, 'public');
     
-    app.use('/images', express.static(path.join(__dirname, 'public/images')));
+    console.log(`Serving static files from: ${publicPath}`);
     
-    // Ensuite, les fichiers statiques du front-end Angular
-    app.use(express.static(path.join(__dirname, 'client/dist/mydeskapp-client')));
+    // Servir les fichiers statiques
+    app.use(express.static(publicPath));
     
-    // Enfin, pour toutes les autres routes, renvoyer vers index.html pour permettre le routage côté client
+    // Gérer les uploads et les images
+    app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+    app.use('/images', express.static(path.join(publicPath, 'images')));
+    
+    // 4) GESTION DES ROUTES SPA (Single Page Application)
     app.get('*', (req, res) => {
-      res.sendFile(path.join(__dirname, 'client/dist/mydeskapp-client/index.html'));
+      res.sendFile(path.join(publicPath, 'index.html'), (err) => {
+        if (err) {
+          console.error('Erreur lors de l\'envoi du fichier index.html:', err);
+          res.status(500).send('Erreur interne du serveur');
+        }
+      });
     });
     
     // 5) GESTION DES ERREURS

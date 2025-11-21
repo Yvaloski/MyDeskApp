@@ -75,27 +75,21 @@ jobs:
         echo "=== Contenu de client/dist/mydeskapp-client/ ==="
         ls -la client/dist/mydeskapp-client/
         
-        # Créer le répertoire de destination
+        # Créer le répertoire wwwroot
+        rm -rf wwwroot
         mkdir -p wwwroot
         
-        # Créer un répertoire temporaire
-        mkdir -p wwwroot-temp
-        
         # Copier le contenu du dossier browser vers la racine
-        echo "Déplacement du contenu de browser/ vers la racine..."
-        cp -r client/dist/mydeskapp-client/browser/* wwwroot-temp/
+        echo "Copie des fichiers du frontend..."
+        cp -r client/dist/mydeskapp-client/browser/* wwwroot/
         
         # Copier les autres fichiers nécessaires
         echo "Copie des fichiers du backend..."
-        cp -r bin/ wwwroot-temp/bin/
-        cp -r routes/ wwwroot-temp/routes/
-        cp -r .env* wwwroot-temp/ 2>/dev/null || true
-        cp app.js wwwroot-temp/
-        cp package*.json wwwroot-temp/
-        
-        # Remplacer l'ancien wwwroot par le nouveau
-        rm -rf wwwroot
-        mv wwwroot-temp wwwroot
+        cp -r bin/ wwwroot/bin/
+        cp -r routes/ wwwroot/routes/
+        cp -r .env* wwwroot/ 2>/dev/null || true
+        cp app.js wwwroot/
+        cp package*.json wwwroot/
         
         # Afficher la structure finale
         echo "=== Structure finale du répertoire wwwroot/ ==="
