@@ -41,15 +41,30 @@ async function initializeApp() {
     }
     
     // Configuration CORS
+    const allowedOrigins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+      : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500', 'http://127.0.0.1:5500'];
+
     const corsOptions = {
-      origin: process.env.NODE_ENV === 'production' 
-        ? ['https://votredomaine.com'] 
-        : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5500', 'http://127.0.0.1:5500'],
+      origin: (origin, callback) => {
+        // Autoriser les requêtes sans origine (comme les applications mobiles ou postman)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) === -1) {
+          const msg = `L'origine ${origin} n'est pas autorisée par CORS`;
+          return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      optionsSuccessStatus: 200
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      exposedHeaders: ['Content-Range', 'X-Total-Count'],
+      optionsSuccessStatus: 200,
+      maxAge: 600 // Durée de mise en cache des pré-vérifications CORS en secondes
     };
+    
+    // Appliquer CORS
     app.use(cors(corsOptions));
     
     // Gestion des requêtes OPTIONS (pré-vol)
@@ -57,9 +72,15 @@ async function initializeApp() {
     
     // Limiter le nombre de requêtes depuis une même IP
     const limiter = rateLimit({
-      max: process.env.NODE_ENV === 'development' ? 1000 : 100, // Plus permissif en dev
-      windowMs: 60 * 60 * 1000, // 1 heure
-      message: 'Trop de requêtes depuis cette adresse IP. Veuillez réessayer dans une heure!'
+      windowMs: process.env.RATE_LIMIT_WINDOW_MS ? parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) : 3600000, // 1 heure par défaut
+      max: process.env.RATE_LIMIT_MAX_REQUESTS ? parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) : 100, // 100 requêtes par fenêtre par défaut
+      message: 'Trop de requêtes depuis cette adresse IP. Veuillez réessayer dans une heure!',
+      standardHeaders: true, // Retourne les en-têtes de limite de taux
+      legacyHeaders: false, // Désactive les en-têtes `X-RateLimit-*`
+      keyGenerator: (req) => {
+        // Utiliser l'adresse IP du client comme clé pour le rate limiting
+        return req.ip || req.connection.remoteAddress;
+      }
     });
     app.use('/api', limiter);
     
