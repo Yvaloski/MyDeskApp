@@ -23,6 +23,9 @@ jobs:
         node-version: ${{ env.NODE_VERSION }}
         cache: 'npm'
 
+    - name: Disable postinstall script
+      run: npm pkg delete scripts.postinstall
+
     - name: Install root dependencies
       run: npm ci --omit=dev
 
@@ -32,9 +35,18 @@ jobs:
     - name: Install and build Angular app
       working-directory: ./client
       run: |
-        npm ci
-        npm install @angular-devkit/build-angular --save-dev
-        npm run build -- --configuration production --output-hashing=all
+        # Nettoyer le cache npm
+        npm cache clean --force
+        
+        # Installer les dépendances avec --legacy-peer-deps pour éviter les conflits
+        npm ci --legacy-peer-deps
+        
+        # Installer explicitement les dépendances nécessaires
+        npm install @angular-devkit/build-angular@latest --save-dev
+        npm install @angular/cli@latest --save-dev
+        
+        # Lancer le build
+        npx ng build --configuration production --output-hashing=all
 
     - name: Prepare deployment package
       run: |
