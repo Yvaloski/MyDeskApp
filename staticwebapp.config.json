@@ -1,0 +1,10 @@
+{
+  "platform": {
+    "enabled": true,
+    "platformName": "node",
+    "platformVersion": "22.x"
+  },
+  "buildCommand": "npm install && npm run build",
+  "installCommand": "npm install",
+  "startCommand": "npm start"
+}
